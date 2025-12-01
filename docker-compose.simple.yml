@@ -1,0 +1,151 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+
+  cassandra:
+    image: cassandra:4.1
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      - CASSANDRA_CLUSTER_NAME=metachat
+      - CASSANDRA_DC=DC1
+      - CASSANDRA_RACK=RAC1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - CASSANDRA_USER=cassandra
+      - CASSANDRA_PASSWORD=cassandra
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    depends_on:
+      - kafka
+      - cassandra
+    ports:
+      - "50051:50051"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - CASSANDRA_HOSTS=cassandra
+      - CASSANDRA_KEYSPACE=metachat
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - LOG_OUTPUT=stdout
+      - ENVIRONMENT=development
+      - EVENT_STORE_TYPE=memory
+      - SERVER_PORT=50051
+      - KAFKA_USER_EVENTS_TOPIC=user-events
+
+  diary-service:
+    build:
+      context: ./services/diary-service
+      dockerfile: Dockerfile
+    container_name: diary-service
+    depends_on:
+      - kafka
+      - cassandra
+    ports:
+      - "50052:50052"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - CASSANDRA_HOSTS=cassandra
+      - CASSANDRA_KEYSPACE=metachat
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - LOG_OUTPUT=stdout
+      - ENVIRONMENT=development
+      - EVENT_STORE_TYPE=memory
+      - SERVER_PORT=50052
+      - KAFKA_DIARY_EVENTS_TOPIC=diary-events
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    depends_on:
+      - user-service
+      - diary-service
+    ports:
+      - "8080:8080"
+    environment:
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - LOG_OUTPUT=stdout
+      - ENVIRONMENT=development
+      - SERVER_PORT=8080
+      - SERVICES_USER_SERVICE_ADDRESS=user-service:50051
+      - SERVICES_DIARY_SERVICE_ADDRESS=diary-service:50052
+
+  mood-analysis-service:
+    build:
+      context: ./services/mood-analysis-service
+      dockerfile: Dockerfile
+    container_name: mood-analysis-service
+    depends_on:
+      - kafka
+    ports:
+      - "50053:50053"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_USER_EVENTS_TOPIC=user-events
+      - KAFKA_DIARY_EVENTS_TOPIC=diary-events
+      - KAFKA_MOOD_EVENTS_TOPIC=mood-events
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - LOG_OUTPUT=stdout
+      - ENVIRONMENT=development
+
+  matching-service:
+    build:
+      context: ./services/matching-service
+      dockerfile: Dockerfile
+    container_name: matching-service
+    depends_on:
+      - kafka
+      - cassandra
+    ports:
+      - "8083:8083"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - CASSANDRA_HOSTS=cassandra
+      - CASSANDRA_KEYSPACE=metachat
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - LOG_OUTPUT=stdout
+      - ENVIRONMENT=development
+
+volumes:
+  cassandra_data:

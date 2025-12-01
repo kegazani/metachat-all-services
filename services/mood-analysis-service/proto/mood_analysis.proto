@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package mood_analysis;
+
+import "google/protobuf/timestamp.proto";
+
+// Mood analysis service
+service MoodAnalysis {
+  // Analyze the mood of a text
+  rpc AnalyzeText(AnalyzeTextRequest) returns (AnalyzeTextResponse) {}
+  
+  // Get aggregated mood data for a user over a time range
+  rpc GetUserMoodAggregation(GetUserMoodAggregationRequest) returns (GetUserMoodAggregationResponse) {}
+}
+
+// Request for text mood analysis
+message AnalyzeTextRequest {
+  string text = 1;
+}
+
+// Response for text mood analysis
+message AnalyzeTextResponse {
+  // Mood scores for each mood category
+  repeated MoodScore mood_scores = 1;
+  
+  // The dominant mood
+  string dominant_mood = 2;
+  
+  // The confidence score for the dominant mood
+  float dominant_score = 3;
+}
+
+// Represents a mood score
+message MoodScore {
+  string mood = 1;
+  float score = 2;
+}
+
+// Request for user mood aggregation
+message GetUserMoodAggregationRequest {
+  string user_id = 1;
+  string time_range = 2;  // "day", "week", or "month"
+}
+
+// Response for user mood aggregation
+message GetUserMoodAggregationResponse {
+  string user_id = 1;
+  string time_range = 2;
+  string start_time = 3;
+  string end_time = 4;
+  int32 entry_count = 5;
+  
+  // Aggregated mood data
+  repeated MoodAggregation mood_aggregations = 6;
+  
+  // Counts of dominant moods
+  repeated DominantMoodCount dominant_mood_counts = 7;
+  
+  // The overall dominant mood
+  string overall_dominant_mood = 8;
+}
+
+// Represents aggregated mood data
+message MoodAggregation {
+  string mood = 1;
+  float average = 2;
+  float max = 3;
+  float min = 4;
+  int32 count = 5;
+}
+
+// Represents a count of a dominant mood
+message DominantMoodCount {
+  string mood = 1;
+  int32 count = 2;
+}
