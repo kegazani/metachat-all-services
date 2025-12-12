@@ -31,8 +31,6 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     hostname: kafka
-    depends_on:
-      - zookeeper
     ports:
       - "9092:9092"
       - "29092:29092"
