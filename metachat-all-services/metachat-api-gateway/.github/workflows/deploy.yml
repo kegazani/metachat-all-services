@@ -1,0 +1,30 @@
+name: Deploy API Gateway
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVICES_SSH_KEY }}
+      - name: Build and deploy
+        env:
+          SERVICES_HOST: ${{ secrets.SERVICES_HOST }}
+          SERVICES_USER: ${{ secrets.SERVICES_USER }}
+          USER_SERVICE_ADDR: ${{ secrets.SERVICES_USER_SERVICE_ADDRESS }}
+          DIARY_SERVICE_ADDR: ${{ secrets.SERVICES_DIARY_SERVICE_ADDRESS }}
+          MATCHING_SERVICE_ADDR: ${{ secrets.SERVICES_MATCHING_SERVICE_ADDRESS }}
+          MATCH_REQUEST_SERVICE_ADDR: ${{ secrets.SERVICES_MATCH_REQUEST_SERVICE_ADDRESS }}
+          CHAT_SERVICE_ADDR: ${{ secrets.SERVICES_CHAT_SERVICE_ADDRESS }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "mkdir -p /opt/metachat-services/api-gateway"
+          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ $SERVICES_USER@$SERVICES_HOST:/opt/metachat-services/api-gateway
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "cd /opt/metachat-services/api-gateway && docker build -t metachat/api-gateway:latest . && docker service update --image metachat/api-gateway:latest --env-add SERVICES_USER_SERVICE_ADDRESS=$USER_SERVICE_ADDR --env-add SERVICES_DIARY_SERVICE_ADDRESS=$DIARY_SERVICE_ADDR --env-add SERVICES_MATCHING_SERVICE_ADDRESS=$MATCHING_SERVICE_ADDR --env-add SERVICES_MATCH_REQUEST_SERVICE_ADDRESS=$MATCH_REQUEST_SERVICE_ADDR --env-add SERVICES_CHAT_SERVICE_ADDRESS=$CHAT_SERVICE_ADDR --env-add SERVER_PORT=8080 --publish-add 8080:8080 metachat-services_api-gateway || docker service create --name metachat-services_api-gateway --network metachat_overlay -e SERVICES_USER_SERVICE_ADDRESS=$USER_SERVICE_ADDR -e SERVICES_DIARY_SERVICE_ADDRESS=$DIARY_SERVICE_ADDR -e SERVICES_MATCHING_SERVICE_ADDRESS=$MATCHING_SERVICE_ADDR -e SERVICES_MATCH_REQUEST_SERVICE_ADDRESS=$MATCH_REQUEST_SERVICE_ADDR -e SERVICES_CHAT_SERVICE_ADDRESS=$CHAT_SERVICE_ADDR -e SERVER_PORT=8080 -p 8080:8080 metachat/api-gateway:latest"
+
+

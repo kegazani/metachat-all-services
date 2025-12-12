@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch with Custom Port",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/cmd",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "DATABASE_HOST": "localhost",
+                "DATABASE_PORT": "5432",
+                "DATABASE_USER": "postgres",
+                "DATABASE_PASSWORD": "postgres",
+                "DATABASE_DBNAME": "metachat",
+                "DATABASE_SSLMODE": "disable",
+                "SERVER_PORT": "50054",
+                "SERVER_HOST": "0.0.0.0",
+                "LOGGING_LEVEL": "debug",
+                "LOGGING_FORMAT": "text",
+                "GRPC_REFLECTION_ENABLED": "true"
+            },
+            "args": [],
+            "showLog": true
+        }
+    ]
+}
+

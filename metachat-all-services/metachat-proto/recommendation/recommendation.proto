@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package recommendation;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "matching/matching.proto";
+
+option go_package = "github.com/kegazani/metachat-proto/recommendation";
+
+// Content represents a piece of content in system
+message Content {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string type = 4; // e.g., "article", "video", "podcast"
+  repeated string tags = 5;
+  map<string, google.protobuf.Value> metadata = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// ContentRecommendation represents a content recommendation
+message ContentRecommendation {
+  Content content = 1;
+  double score = 2;
+  string reason = 3; // e.g., "similar_to_your_interests", "popular_in_your_community"
+}
+
+// Request/Response messages
+message GetContentRecommendationsRequest {
+  string user_id = 1;
+  int32 limit = 2;
+}
+
+message GetContentRecommendationsResponse {
+  repeated ContentRecommendation recommendations = 1;
+}
+
+message GetUserRecommendationsRequest {
+  string user_id = 1;
+  int32 limit = 2;
+}
+
+message GetUserRecommendationsResponse {
+  repeated matching.UserMatch matches = 1;
+}
+
+message GetSimilarContentRequest {
+  string content_id = 1;
+  int32 limit = 2;
+}
+
+message GetSimilarContentResponse {
+  repeated Content content = 1;
+}
+
+// RecommendationService definition
+service RecommendationService {
+  rpc GetContentRecommendations(GetContentRecommendationsRequest) returns (GetContentRecommendationsResponse);
+  rpc GetUserRecommendations(GetUserRecommendationsRequest) returns (GetUserRecommendationsResponse);
+  rpc GetSimilarContent(GetSimilarContentRequest) returns (GetSimilarContentResponse);
+}

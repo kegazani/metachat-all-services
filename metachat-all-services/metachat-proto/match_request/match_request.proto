@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package match_request;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/kegazani/metachat-proto/match_request";
+
+message MatchRequest {
+  string id = 1;
+  string from_user_id = 2;
+  string to_user_id = 3;
+  repeated string common_topics = 4;
+  double similarity = 5;
+  string status = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message CreateMatchRequestRequest {
+  string from_user_id = 1;
+  string to_user_id = 2;
+  repeated string common_topics = 3;
+  double similarity = 4;
+}
+
+message CreateMatchRequestResponse {
+  MatchRequest match_request = 1;
+}
+
+message GetUserMatchRequestsRequest {
+  string user_id = 1;
+  string status = 2;
+}
+
+message GetUserMatchRequestsResponse {
+  repeated MatchRequest match_requests = 1;
+}
+
+message AcceptMatchRequestRequest {
+  string request_id = 1;
+  string user_id = 2;
+}
+
+message AcceptMatchRequestResponse {
+  MatchRequest match_request = 1;
+}
+
+message RejectMatchRequestRequest {
+  string request_id = 1;
+  string user_id = 2;
+}
+
+message RejectMatchRequestResponse {
+  MatchRequest match_request = 1;
+}
+
+message GetMatchRequestRequest {
+  string request_id = 1;
+}
+
+message GetMatchRequestResponse {
+  MatchRequest match_request = 1;
+}
+
+message CancelMatchRequestRequest {
+  string request_id = 1;
+  string user_id = 2;
+}
+
+message CancelMatchRequestResponse {
+  MatchRequest match_request = 1;
+}
+
+service MatchRequestService {
+  rpc CreateMatchRequest(CreateMatchRequestRequest) returns (CreateMatchRequestResponse);
+  rpc GetUserMatchRequests(GetUserMatchRequestsRequest) returns (GetUserMatchRequestsResponse);
+  rpc AcceptMatchRequest(AcceptMatchRequestRequest) returns (AcceptMatchRequestResponse);
+  rpc RejectMatchRequest(RejectMatchRequestRequest) returns (RejectMatchRequestResponse);
+  rpc GetMatchRequest(GetMatchRequestRequest) returns (GetMatchRequestResponse);
+  rpc CancelMatchRequest(CancelMatchRequestRequest) returns (CancelMatchRequestResponse);
+}
+

@@ -1,0 +1,233 @@
+syntax = "proto3";
+
+package diary;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/kegazani/metachat-proto/diary";
+
+// DiaryEntry message
+message DiaryEntry {
+  string id = 1;
+  string user_id = 2;
+  string title = 3;
+  string content = 4;
+  int32 token_count = 5;
+  string session_id = 6;
+  repeated string tags = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// DiarySession message
+message DiarySession {
+  string id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp ended_at = 6;
+  string status = 7;
+  int32 entry_count = 8;
+}
+
+// DiaryEntryReadModel message
+message DiaryEntryReadModel {
+  string id = 1;
+  string user_id = 2;
+  string title = 3;
+  string content = 4;
+  int32 token_count = 5;
+  string session_id = 6;
+  repeated string tags = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// DiarySessionReadModel message
+message DiarySessionReadModel {
+  string id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp ended_at = 6;
+  string status = 7;
+  int32 entry_count = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// DiaryAnalytics message
+message DiaryAnalytics {
+  int64 total_entries = 1;
+  int64 total_sessions = 2;
+  int64 active_users = 3;
+  double average_entries_per_session = 4;
+  double average_sessions_per_user = 5;
+  google.protobuf.Timestamp last_updated = 6;
+}
+
+// Request/Response messages
+message CreateDiaryEntryRequest {
+  string user_id = 1;
+  string title = 2;
+  string content = 3;
+  int32 token_count = 4;
+  string session_id = 5;
+  repeated string tags = 6;
+}
+
+message CreateDiaryEntryResponse {
+  DiaryEntry entry = 1;
+}
+
+message GetDiaryEntryRequest {
+  string id = 1;
+}
+
+message GetDiaryEntryResponse {
+  DiaryEntry entry = 1;
+}
+
+message UpdateDiaryEntryRequest {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  int32 token_count = 4;
+  string session_id = 5;
+  repeated string tags = 6;
+}
+
+message UpdateDiaryEntryResponse {
+  DiaryEntry entry = 1;
+}
+
+message DeleteDiaryEntryRequest {
+  string id = 1;
+}
+
+message DeleteDiaryEntryResponse {
+  google.protobuf.Empty empty = 1;
+}
+
+message StartDiarySessionRequest {
+  string user_id = 1;
+  string title = 2;
+  string description = 3;
+}
+
+message StartDiarySessionResponse {
+  DiarySession session = 1;
+}
+
+message EndDiarySessionRequest {
+  string id = 1;
+}
+
+message EndDiarySessionResponse {
+  DiarySession session = 1;
+}
+
+message GetDiarySessionRequest {
+  string id = 1;
+}
+
+message GetDiarySessionResponse {
+  DiarySession session = 1;
+}
+
+message GetDiaryEntryReadModelRequest {
+  string id = 1;
+}
+
+message GetDiaryEntryReadModelResponse {
+  DiaryEntryReadModel entry = 1;
+}
+
+message GetDiarySessionReadModelRequest {
+  string id = 1;
+}
+
+message GetDiarySessionReadModelResponse {
+  DiarySessionReadModel session = 1;
+}
+
+message ListDiaryEntriesRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  string filter = 3;
+}
+
+message ListDiaryEntriesResponse {
+  repeated DiaryEntry entries = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+message ListDiarySessionsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  string filter = 3;
+}
+
+message ListDiarySessionsResponse {
+  repeated DiarySession sessions = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+message GetDiaryEntriesByUserRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message GetDiaryEntriesByUserResponse {
+  repeated DiaryEntry entries = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+message GetDiarySessionsByUserRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message GetDiarySessionsByUserResponse {
+  repeated DiarySession sessions = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+message GetDiaryAnalyticsRequest {
+  google.protobuf.Empty empty = 1;
+}
+
+message GetDiaryAnalyticsResponse {
+  DiaryAnalytics analytics = 1;
+}
+
+// DiaryService definition
+service DiaryService {
+  rpc CreateDiaryEntry(CreateDiaryEntryRequest) returns (CreateDiaryEntryResponse);
+  rpc GetDiaryEntry(GetDiaryEntryRequest) returns (GetDiaryEntryResponse);
+  rpc UpdateDiaryEntry(UpdateDiaryEntryRequest) returns (UpdateDiaryEntryResponse);
+  rpc DeleteDiaryEntry(DeleteDiaryEntryRequest) returns (DeleteDiaryEntryResponse);
+  rpc StartDiarySession(StartDiarySessionRequest) returns (StartDiarySessionResponse);
+  rpc EndDiarySession(EndDiarySessionRequest) returns (EndDiarySessionResponse);
+  rpc GetDiarySession(GetDiarySessionRequest) returns (GetDiarySessionResponse);
+  rpc GetDiaryEntryReadModel(GetDiaryEntryReadModelRequest) returns (GetDiaryEntryReadModelResponse);
+  rpc GetDiarySessionReadModel(GetDiarySessionReadModelRequest) returns (GetDiarySessionReadModelResponse);
+  rpc ListDiaryEntries(ListDiaryEntriesRequest) returns (ListDiaryEntriesResponse);
+  rpc ListDiarySessions(ListDiarySessionsRequest) returns (ListDiarySessionsResponse);
+  rpc GetDiaryEntriesByUser(GetDiaryEntriesByUserRequest) returns (GetDiaryEntriesByUserResponse);
+  rpc GetDiarySessionsByUser(GetDiarySessionsByUserRequest) returns (GetDiarySessionsByUserResponse);
+  rpc GetDiaryAnalytics(GetDiaryAnalyticsRequest) returns (GetDiaryAnalyticsResponse);
+}

@@ -1,0 +1,24 @@
+name: Deploy Matching Service
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVICES_SSH_KEY }}
+      - name: Build and deploy
+        env:
+          SERVICES_HOST: ${{ secrets.SERVICES_HOST }}
+          SERVICES_USER: ${{ secrets.SERVICES_USER }}
+          INFRA_CASSANDRA: ${{ secrets.INFRA_CASSANDRA_HOST }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "mkdir -p /opt/metachat-services/matching-service"
+          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ $SERVICES_USER@$SERVICES_HOST:/opt/metachat-services/matching-service
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "cd /opt/metachat-services/matching-service && docker build -t metachat/matching-service:latest . && docker service update --image metachat/matching-service:latest --env-add CASSANDRA_HOSTS=$INFRA_CASSANDRA --env-add CASSANDRA_KEYSPACE=metachat --env-add SERVER_PORT=8080 --env-add GRPC_PORT=50053 --publish-add 50053:50053 --publish-add 8081:8080 metachat-services_matching-service || docker service create --name metachat-services_matching-service --network metachat_overlay -e CASSANDRA_HOSTS=$INFRA_CASSANDRA -e CASSANDRA_KEYSPACE=metachat -e SERVER_PORT=8080 -e GRPC_PORT=50053 -p 50053:50053 -p 8081:8080 metachat/matching-service:latest"

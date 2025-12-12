@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package personality;
+
+option go_package = "github.com/kegazani/metachat-proto/personality";
+
+message GetProfileProgressRequest {
+  string user_id = 1;
+}
+
+message GetProfileProgressResponse {
+  int32 tokens_analyzed = 1;
+  int32 tokens_required_for_first = 2;
+  int32 tokens_required_for_recalc = 3;
+  int32 days_since_last_calc = 4;
+  int32 days_until_recalc = 5;
+  bool is_first_calculation = 6;
+  double progress_percentage = 7;
+}
+
+service PersonalityService {
+  rpc GetProfileProgress(GetProfileProgressRequest) returns (GetProfileProgressResponse);
+}
+

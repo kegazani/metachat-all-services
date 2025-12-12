@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package mood_analysis;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kegazani/metachat-proto/mood_analysis";
+
+service MoodAnalysis {
+  rpc AnalyzeText(AnalyzeTextRequest) returns (AnalyzeTextResponse);
+  rpc GetUserMoodAggregation(GetUserMoodAggregationRequest) returns (GetUserMoodAggregationResponse);
+}
+
+message AnalyzeTextRequest {
+  string text = 1;
+}
+
+message AnalyzeTextResponse {
+  repeated MoodScore mood_scores = 1;
+  string dominant_mood = 2;
+  float dominant_score = 3;
+}
+
+message MoodScore {
+  string mood = 1;
+  float score = 2;
+}
+
+message GetUserMoodAggregationRequest {
+  string user_id = 1;
+  string time_range = 2;
+}
+
+message GetUserMoodAggregationResponse {
+  string user_id = 1;
+  string time_range = 2;
+  string start_time = 3;
+  string end_time = 4;
+  int32 entry_count = 5;
+  repeated MoodAggregation mood_aggregations = 6;
+  repeated DominantMoodCount dominant_mood_counts = 7;
+  string overall_dominant_mood = 8;
+}
+
+message MoodAggregation {
+  string mood = 1;
+  float average = 2;
+  float max = 3;
+  float min = 4;
+  int32 count = 5;
+}
+
+message DominantMoodCount {
+  string mood = 1;
+  int32 count = 2;
+}
+

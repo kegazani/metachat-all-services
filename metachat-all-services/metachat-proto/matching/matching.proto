@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package matching;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/kegazani/metachat-proto/matching";
+
+// User message
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string first_name = 4;
+  string last_name = 5;
+  string date_of_birth = 6;
+  string gender = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// UserPortrait represents a user's emotional and psychological portrait
+message UserPortrait {
+  string user_id = 1;
+  map<string, double> mood_profile = 2;
+  map<string, double> personality_traits = 3;
+  repeated string interests = 4;
+  map<string, google.protobuf.Value> modalities = 5;
+  google.protobuf.Timestamp last_updated = 6;
+}
+
+// UserMatch represents a match between two users
+message UserMatch {
+  string user_id1 = 1;
+  string user_id2 = 2;
+  double similarity = 3;
+  repeated string common_tags = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+// Request/Response messages
+message FindSimilarUsersRequest {
+  string user_id = 1;
+  int32 limit = 2;
+}
+
+message FindSimilarUsersResponse {
+  repeated UserMatch matches = 1;
+}
+
+message CalculateUserSimilarityRequest {
+  string user_id1 = 1;
+  string user_id2 = 2;
+}
+
+message CalculateUserSimilarityResponse {
+  double similarity = 1;
+}
+
+message SaveUserMatchRequest {
+  UserMatch match = 1;
+}
+
+message SaveUserMatchResponse {
+  google.protobuf.Empty empty = 1;
+}
+
+message GetUserMatchesRequest {
+  string user_id = 1;
+}
+
+message GetUserMatchesResponse {
+  repeated UserMatch matches = 1;
+}
+
+message GetUserPortraitRequest {
+  string user_id = 1;
+}
+
+message GetUserPortraitResponse {
+  UserPortrait portrait = 1;
+}
+
+message UpdateUserPortraitRequest {
+  string user_id = 1;
+  UserPortrait portrait = 2;
+}
+
+message UpdateUserPortraitResponse {
+  google.protobuf.Empty empty = 1;
+}
+
+message GetCommonTopicsRequest {
+  string user_id1 = 1;
+  string user_id2 = 2;
+}
+
+message GetCommonTopicsResponse {
+  repeated string common_topics = 1;
+}
+
+// MatchingService definition
+service MatchingService {
+  rpc FindSimilarUsers(FindSimilarUsersRequest) returns (FindSimilarUsersResponse);
+  rpc CalculateUserSimilarity(CalculateUserSimilarityRequest) returns (CalculateUserSimilarityResponse);
+  rpc SaveUserMatch(SaveUserMatchRequest) returns (SaveUserMatchResponse);
+  rpc GetUserMatches(GetUserMatchesRequest) returns (GetUserMatchesResponse);
+  rpc GetUserPortrait(GetUserPortraitRequest) returns (GetUserPortraitResponse);
+  rpc UpdateUserPortrait(UpdateUserPortraitRequest) returns (UpdateUserPortraitResponse);
+  rpc GetCommonTopics(GetCommonTopicsRequest) returns (GetCommonTopicsResponse);
+}

@@ -1,0 +1,28 @@
+name: Deploy Chat Service
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVICES_SSH_KEY }}
+      - name: Build and deploy
+        env:
+          SERVICES_HOST: ${{ secrets.SERVICES_HOST }}
+          SERVICES_USER: ${{ secrets.SERVICES_USER }}
+          INFRA_POSTGRES: ${{ secrets.INFRA_POSTGRES_HOST }}
+          POSTGRES_USER: ${{ secrets.INFRA_POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.INFRA_POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.INFRA_POSTGRES_DB }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "mkdir -p /opt/metachat-services/chat-service"
+          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ $SERVICES_USER@$SERVICES_HOST:/opt/metachat-services/chat-service
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "cd /opt/metachat-services/chat-service && docker build -t metachat/chat-service:latest . && docker service update --image metachat/chat-service:latest --env-add DATABASE_HOST=$INFRA_POSTGRES --env-add DATABASE_USER=$POSTGRES_USER --env-add DATABASE_PASSWORD=$POSTGRES_PASSWORD --env-add DATABASE_NAME=$POSTGRES_DB --env-add DATABASE_PORT=5432 --env-add SERVER_PORT=50055 --publish-add 50055:50055 metachat-services_chat-service || docker service create --name metachat-services_chat-service --network metachat_overlay -e DATABASE_HOST=$INFRA_POSTGRES -e DATABASE_PORT=5432 -e DATABASE_USER=$POSTGRES_USER -e DATABASE_PASSWORD=$POSTGRES_PASSWORD -e DATABASE_NAME=$POSTGRES_DB -e SERVER_PORT=50055 -p 50055:50055 metachat/chat-service:latest"
+

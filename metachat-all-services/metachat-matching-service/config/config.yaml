@@ -1,0 +1,44 @@
+server:
+  port: "8081"
+  http_port: "8081"
+  grpc_port: "50053"
+  host: "0.0.0.0"
+
+logging:
+  level: "info"
+  format: "json"
+
+kafka:
+  all_kafka_topics:
+    user_service:
+      - "metachat-user-events"
+    diary_service:
+      - "diary-events"
+      - "session-events"
+      - "metachat.diary.entry.created"
+      - "metachat.diary.entry.updated"
+      - "metachat.diary.entry.deleted"
+    mood_analysis_service:
+      - "metachat.diary.entry.created"
+      - "metachat.diary.entry.updated"
+      - "metachat.mood.analyzed"
+      - "metachat.mood.analysis.failed"
+    analytics_service:
+      - "metachat.mood.analyzed"
+      - "metachat.diary.entry.created"
+      - "metachat.diary.entry.deleted"
+      - "metachat.archetype.updated"
+    archetype_service:
+      - "metachat.mood.analyzed"
+      - "metachat.diary.entry.created"
+      - "metachat.archetype.assigned"
+      - "metachat.archetype.updated"
+      - "metachat.archetype.calculation.triggered"
+    biometric_service:
+      - "metachat.biometric.data.received"
+    correlation_service:
+      - "metachat.mood.analyzed"
+      - "metachat.biometric.data.received"
+      - "metachat.correlation.discovered"
+
+

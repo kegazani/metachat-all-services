@@ -1,0 +1,20 @@
+server:
+  port: "50054"
+  host: "0.0.0.0"
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "metachat"
+  password: "metachat_password"
+  dbname: "metachat"
+  sslmode: "disable"
+
+logging:
+  level: "info"
+  format: "json"
+
+grpc:
+  reflection_enabled: true
+  shutdown_timeout: "10s"
+

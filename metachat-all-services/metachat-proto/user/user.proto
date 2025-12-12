@@ -1,0 +1,235 @@
+syntax = "proto3";
+
+package user;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/kegazani/metachat-proto/user";
+
+// User message
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string first_name = 4;
+  string last_name = 5;
+  string date_of_birth = 6;
+  string avatar = 7;
+  string bio = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// Archetype message
+message Archetype {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  double confidence = 4;
+  google.protobuf.Timestamp assigned_at = 5;
+}
+
+// UserModality message
+message UserModality {
+  string id = 1;
+  string name = 2;
+  double score = 3;
+  string description = 4;
+}
+
+// UserReadModel message
+message UserReadModel {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string first_name = 4;
+  string last_name = 5;
+  string full_name = 6;
+  string avatar = 7;
+  string bio = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// UserArchetypeReadModel message
+message UserArchetypeReadModel {
+  string id = 1;
+  string archetype_id = 2;
+  string archetype_name = 3;
+  string description = 4;
+  double confidence = 5;
+  google.protobuf.Timestamp assigned_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// Request/Response messages
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  string first_name = 3;
+  string last_name = 4;
+  string date_of_birth = 5;
+}
+
+message CreateUserResponse {
+  User user = 1;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message UpdateUserProfileRequest {
+  string id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string date_of_birth = 4;
+  string avatar = 5;
+  string bio = 6;
+}
+
+message UpdateUserProfileResponse {
+  User user = 1;
+}
+
+message AssignArchetypeRequest {
+  string id = 1;
+  string archetype_id = 2;
+  string archetype_name = 3;
+  double confidence = 4;
+  string description = 5;
+}
+
+message AssignArchetypeResponse {
+  User user = 1;
+}
+
+message UpdateArchetypeRequest {
+  string id = 1;
+  string archetype_id = 2;
+  string archetype_name = 3;
+  double confidence = 4;
+  string description = 5;
+}
+
+message UpdateArchetypeResponse {
+  User user = 1;
+}
+
+message UpdateModalitiesRequest {
+  string id = 1;
+  repeated UserModality modalities = 2;
+}
+
+message UpdateModalitiesResponse {
+  User user = 1;
+}
+
+message GetUserReadModelRequest {
+  string id = 1;
+}
+
+message GetUserReadModelResponse {
+  UserReadModel user = 1;
+}
+
+message GetUserArchetypeReadModelRequest {
+  string id = 1;
+}
+
+message GetUserArchetypeReadModelResponse {
+  UserArchetypeReadModel user_archetype = 1;
+}
+
+message ListUsersRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  string filter = 3;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string token = 1;
+  string id = 2;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+  string first_name = 4;
+  string last_name = 5;
+}
+
+message RegisterResponse {
+  string token = 1;
+  string id = 2;
+}
+
+message ProfileProgress {
+  int32 tokens_analyzed = 1;
+  int32 tokens_required_for_first = 2;
+  int32 tokens_required_for_recalc = 3;
+  int32 days_since_last_calc = 4;
+  int32 days_until_recalc = 5;
+  bool is_first_calculation = 6;
+  double progress_percentage = 7;
+}
+
+message UserStatistics {
+  int32 total_diary_entries = 1;
+  int32 total_mood_analyses = 2;
+  int32 total_tokens = 3;
+  string dominant_emotion = 4;
+  repeated string top_topics = 5;
+  google.protobuf.Timestamp profile_created_at = 6;
+  google.protobuf.Timestamp last_personality_update = 7;
+}
+
+message GetUserProfileProgressRequest {
+  string id = 1;
+}
+
+message GetUserProfileProgressResponse {
+  ProfileProgress progress = 1;
+}
+
+message GetUserStatisticsRequest {
+  string id = 1;
+}
+
+message GetUserStatisticsResponse {
+  UserStatistics statistics = 1;
+}
+
+// UserService definition
+service UserService {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc UpdateUserProfile(UpdateUserProfileRequest) returns (UpdateUserProfileResponse);
+  rpc AssignArchetype(AssignArchetypeRequest) returns (AssignArchetypeResponse);
+  rpc UpdateArchetype(UpdateArchetypeRequest) returns (UpdateArchetypeResponse);
+  rpc UpdateModalities(UpdateModalitiesRequest) returns (UpdateModalitiesResponse);
+  rpc GetUserReadModel(GetUserReadModelRequest) returns (GetUserReadModelResponse);
+  rpc GetUserArchetypeReadModel(GetUserArchetypeReadModelRequest) returns (GetUserArchetypeReadModelResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc GetUserProfileProgress(GetUserProfileProgressRequest) returns (GetUserProfileProgressResponse);
+  rpc GetUserStatistics(GetUserStatisticsRequest) returns (GetUserStatisticsResponse);
+}

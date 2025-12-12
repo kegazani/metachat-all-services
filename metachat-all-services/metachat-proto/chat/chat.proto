@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package chat;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/kegazani/metachat-proto/chat";
+
+message Chat {
+  string id = 1;
+  string user_id1 = 2;
+  string user_id2 = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message Message {
+  string id = 1;
+  string chat_id = 2;
+  string sender_id = 3;
+  string content = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp read_at = 6;
+}
+
+message CreateChatRequest {
+  string user_id1 = 1;
+  string user_id2 = 2;
+}
+
+message CreateChatResponse {
+  Chat chat = 1;
+}
+
+message GetChatRequest {
+  string chat_id = 1;
+}
+
+message GetChatResponse {
+  Chat chat = 1;
+}
+
+message GetUserChatsRequest {
+  string user_id = 1;
+}
+
+message GetUserChatsResponse {
+  repeated Chat chats = 1;
+}
+
+message SendMessageRequest {
+  string chat_id = 1;
+  string sender_id = 2;
+  string content = 3;
+}
+
+message SendMessageResponse {
+  Message message = 1;
+}
+
+message GetChatMessagesRequest {
+  string chat_id = 1;
+  int32 limit = 2;
+  string before_message_id = 3;
+}
+
+message GetChatMessagesResponse {
+  repeated Message messages = 1;
+}
+
+message MarkMessagesAsReadRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message MarkMessagesAsReadResponse {
+  int32 marked_count = 1;
+}
+
+service ChatService {
+  rpc CreateChat(CreateChatRequest) returns (CreateChatResponse);
+  rpc GetChat(GetChatRequest) returns (GetChatResponse);
+  rpc GetUserChats(GetUserChatsRequest) returns (GetUserChatsResponse);
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc GetChatMessages(GetChatMessagesRequest) returns (GetChatMessagesResponse);
+  rpc MarkMessagesAsRead(MarkMessagesAsReadRequest) returns (MarkMessagesAsReadResponse);
+}
+

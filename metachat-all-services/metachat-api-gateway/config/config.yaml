@@ -1,0 +1,17 @@
+server:
+  port: "8080"
+
+services:
+  user_service_address: "localhost:50051"
+  diary_service_address: "localhost:50052"
+  matching_service_address: "localhost:50053"
+  match_request_service_address: "localhost:50054"
+  chat_service_address: "localhost:50055"
+  biometric_service_address: "http://localhost:8003"
+
+log:
+  level: "info"
+  format: "json"
+  output: "stdout"
+
+environment: "development"
