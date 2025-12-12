@@ -1,0 +1,93 @@
+kafka_topics:
+  user_service:
+    - name: "metachat-user-events"
+      description: "User service events (registration, profile updates, etc.)"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+
+  diary_service:
+    - name: "diary-events"
+      description: "Diary entry events"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+    - name: "session-events"
+      description: "Diary session events"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+
+  mood_analysis_service:
+    - name: "metachat.diary.entry.created"
+      description: "Diary entry created events (consumed by mood analysis)"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+    - name: "metachat.diary.entry.updated"
+      description: "Diary entry updated events (consumed by mood analysis)"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+    - name: "metachat.mood.analyzed"
+      description: "Mood analysis results (produced by mood analysis service)"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+    - name: "metachat.mood.analysis.failed"
+      description: "Mood analysis failures"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+
+  analytics_service:
+    - name: "metachat.diary.entry.deleted"
+      description: "Diary entry deleted events"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+
+  archetype_service:
+    - name: "metachat.archetype.assigned"
+      description: "Archetype assigned to user"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+    - name: "metachat.archetype.updated"
+      description: "Archetype updated for user"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+    - name: "metachat.archetype.calculation.triggered"
+      description: "Archetype calculation triggered"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+
+  biometric_service:
+    - name: "metachat.biometric.data.received"
+      description: "Biometric data received from devices"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+
+  correlation_service:
+    - name: "metachat.correlation.discovered"
+      description: "Correlations discovered between mood and biometric data"
+      partitions: 3
+      replication_factor: 1
+      retention_ms: 604800000
+      cleanup_policy: "delete"
+

@@ -1,0 +1,106 @@
+groups:
+  - name: metachat-services
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} on {{ $labels.instance }} has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Service {{ $labels.job }} has error rate above 10% for 5 minutes."
+
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow response time on {{ $labels.job }}"
+          description: "95th percentile response time is above 2 seconds on {{ $labels.job }}."
+
+      - alert: HighMemoryUsage
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.name }}"
+          description: "Container {{ $labels.name }} is using more than 90% of its memory limit."
+
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total[5m]) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.name }}"
+          description: "Container {{ $labels.name }} is using more than 90% CPU."
+
+  - name: metachat-infrastructure
+    rules:
+      - alert: KafkaDown
+        expr: up{job="kafka"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka is down"
+          description: "Kafka broker is not responding."
+
+      - alert: CassandraDown
+        expr: up{job="cassandra"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Cassandra is down"
+          description: "Cassandra cluster is not responding."
+
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database is not responding."
+
+      - alert: EventStoreDown
+        expr: up{job="eventstore"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "EventStore is down"
+          description: "EventStore database is not responding."
+
+  - name: metachat-swarm
+    rules:
+      - alert: SwarmNodeDown
+        expr: sum(node_meta) by (node) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Swarm node is down"
+          description: "A Swarm node has been down for more than 5 minutes."
+
+      - alert: ServiceReplicasDown
+        expr: (sum(docker_swarm_service_tasks_running) by (service_name)) < (sum(docker_swarm_service_tasks_desired) by (service_name))
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Service replicas are down"
+          description: "Service {{ $labels.service_name }} has fewer replicas than desired."
+

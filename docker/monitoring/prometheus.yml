@@ -1,0 +1,146 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'metachat-cluster'
+    env: 'production'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/alerting-rules.yml
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'docker-swarm'
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: tasks
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_task_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_dockerswarm_service_name]
+        target_label: service
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: node
+      - source_labels: [__meta_dockerswarm_task_slot]
+        target_label: slot
+
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:8080']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'user-service'
+    static_configs:
+      - targets: ['user-service:8080']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'diary-service'
+    static_configs:
+      - targets: ['diary-service:8080']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'matching-service'
+    static_configs:
+      - targets: ['matching-service:8080']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'match-request-service'
+    static_configs:
+      - targets: ['match-request-service:50054']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'chat-service'
+    static_configs:
+      - targets: ['chat-service:50055']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'mood-analysis-service'
+    static_configs:
+      - targets: ['mood-analysis-service:8000']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'analytics-service'
+    static_configs:
+      - targets: ['analytics-service:8000']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'archetype-service'
+    static_configs:
+      - targets: ['archetype-service:8000']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'biometric-service'
+    static_configs:
+      - targets: ['biometric-service:8000']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'correlation-service'
+    static_configs:
+      - targets: ['correlation-service:8000']
+    metrics_path: /metrics
+    scrape_interval: 10s
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:29092']
+
+  - job_name: 'cassandra'
+    static_configs:
+      - targets: ['cassandra:9042']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+
+  - job_name: 'eventstore'
+    static_configs:
+      - targets: ['eventstore:2113']
+    metrics_path: /metrics
+
+  - job_name: 'nats'
+    static_configs:
+      - targets: ['nats:8222']
+    metrics_path: /metrics
+
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://api-gateway:8080/health
+          - http://user-service:8080/health
+          - http://diary-service:8080/health
+          - http://matching-service:8080/health
+          - http://mood-analysis-service:8000/health
+          - http://analytics-service:8000/health
+          - http://archetype-service:8000/health
+          - http://biometric-service:8000/health
+          - http://correlation-service:8000/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+

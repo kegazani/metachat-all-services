@@ -1,0 +1,663 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 384M
+        reservations:
+          cpus: '0.15'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    hostname: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_LOG_SEGMENT_BYTES: 268435456
+      KAFKA_HEAP_OPTS: "-Xmx768m -Xms768m"
+      KAFKA_JVM_PERFORMANCE_OPTS: "-XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1024M
+        reservations:
+          cpus: '0.25'
+          memory: 768M
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:29092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    hostname: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  kafka-topics-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-topics-init
+    hostname: kafka-topics-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo "⏳ Waiting for Kafka to be ready..."
+        for i in {1..30}; do
+          if kafka-broker-api-versions --bootstrap-server kafka:29092 >/dev/null 2>&1; then
+            echo "✅ Kafka is ready!"
+            break
+          fi
+          echo "   Attempt $$i/30 - Kafka not ready yet, waiting 2 seconds..."
+          sleep 2
+        done
+        
+        echo ""
+        echo "🚀 Creating Kafka topics for MetaChat services..."
+        echo ""
+        
+        create_topic() {
+          local topic_name="$$1"
+          local partitions="$${2:-3}"
+          local replication_factor="$${3:-1}"
+          local retention_ms="$${4:-86400000}"
+          local cleanup_policy="$${5:-delete}"
+          
+          echo "📝 Creating topic: $$topic_name (partitions: $$partitions)"
+          if kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+            --topic "$$topic_name" \
+            --partitions $$partitions \
+            --replication-factor $$replication_factor \
+            --config retention.ms=$$retention_ms \
+            --config cleanup.policy=$$cleanup_policy 2>/dev/null; then
+            echo "   ✅ Created successfully"
+          else
+            if kafka-topics --bootstrap-server kafka:29092 --list | grep -q "^$${topic_name}$$"; then
+              echo "   ℹ️  Topic already exists"
+            else
+              echo "   ❌ Failed to create topic"
+            fi
+          fi
+          echo ""
+        }
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📦 User Service Topics"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        create_topic "metachat.user.events" 3
+        create_topic "metachat.user.created" 3
+        create_topic "metachat.user.updated" 3
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📔 Diary Service Topics"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        create_topic "metachat.diary.entry.created" 3
+        create_topic "metachat.diary.entry.updated" 3
+        create_topic "metachat.diary.entry.deleted" 3
+        create_topic "metachat.session.created" 3
+        create_topic "metachat.session.updated" 3
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "😊 Mood Analysis Service Topics"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        create_topic "metachat.mood.analyzed" 3
+        create_topic "metachat.mood.analysis.failed" 3
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🎭 Personality Service Topics (Big Five)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        create_topic "metachat.personality.assigned" 3
+        create_topic "metachat.personality.updated" 3
+        create_topic "metachat.personality.calculation.triggered" 3
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "💓 Biometric Service Topics"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        create_topic "metachat.biometric.data.received" 3
+        create_topic "metachat.biometric.data.processed" 3
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🔗 Correlation Service Topics"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        create_topic "metachat.correlation.discovered" 3
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📋 Summary"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📋 All Kafka topics:"
+        kafka-topics --bootstrap-server kafka:29092 --list | grep "^metachat" | sort || true
+        echo ""
+        echo "🎉 Kafka topics initialization complete!"
+    networks:
+      - metachat_network
+    restart: "no"
+
+  cassandra:
+    image: cassandra:4.1
+    container_name: cassandra
+    hostname: cassandra
+    ports:
+      - "9042:9042"     # CQL порт - доступен снаружи
+      - "7000:7000"     # Inter-node communication
+      - "7001:7001"     # TLS inter-node communication
+    environment:
+      CASSANDRA_CLUSTER_NAME: "metachat-cluster"
+      CASSANDRA_DC: "datacenter1"
+      CASSANDRA_RACK: "rack1"
+      CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
+      CASSANDRA_SEEDS: "cassandra"
+      CASSANDRA_NUM_TOKENS: 256
+      CASSANDRA_LISTEN_ADDRESS: cassandra
+      CASSANDRA_BROADCAST_ADDRESS: cassandra
+      # RPC слушает на всех интерфейсах для внешнего доступа
+      CASSANDRA_RPC_ADDRESS: "0.0.0.0"
+      CASSANDRA_BROADCAST_RPC_ADDRESS: cassandra
+      MAX_HEAP_SIZE: "1G"
+      HEAP_NEWSIZE: "200M"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+      - ./cassandra-init.cql:/docker-entrypoint-initdb.d/cassandra-init.cql:ro
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+
+  cassandra-init:
+    image: cassandra:5.0
+    container_name: cassandra-init
+    hostname: cassandra-init
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🚀 MetaChat Cassandra Schema Initialization"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        
+        echo "⏳ Waiting for Cassandra to be fully ready..."
+        sleep 15
+        
+        MAX_ATTEMPTS=30
+        ATTEMPT=0
+        READY=false
+        
+        while [ $$ATTEMPT -lt $$MAX_ATTEMPTS ] && [ "$$READY" = "false" ]; do
+          ATTEMPT=$$((ATTEMPT + 1))
+          echo "   🔍 Attempt $$ATTEMPT/$$MAX_ATTEMPTS - Testing connection..."
+          
+          if cqlsh cassandra -e "SELECT release_version FROM system.local;" >/dev/null 2>&1; then
+            echo "   ✅ Connection successful!"
+            READY=true
+          else
+            echo "   ⏳ Not ready yet, waiting 5 seconds..."
+            sleep 5
+          fi
+        done
+        
+        if [ "$$READY" = "false" ]; then
+          echo ""
+          echo "❌ ERROR: Could not connect to Cassandra after $$MAX_ATTEMPTS attempts"
+          echo "   Please check Cassandra logs: docker logs cassandra"
+          exit 1
+        fi
+        
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📝 Executing Schema Initialization Script"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        
+        if [ -f /init/init.cql ]; then
+          echo "📂 Found init.cql file, executing..."
+          
+          if cqlsh cassandra -f /init/init.cql; then
+            echo ""
+            echo "✅ Schema initialization completed successfully!"
+          else
+            echo ""
+            echo "❌ ERROR: Schema initialization failed!"
+            echo "   Check the init.cql file for syntax errors"
+            exit 1
+          fi
+        else
+          echo "⚠️  No init.cql file found at /init/init.cql"
+          echo "   Skipping schema initialization"
+        fi
+        
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🔍 Verifying Schema"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        
+        echo "📊 Checking keyspace 'metachat'..."
+        if cqlsh cassandra -e "DESCRIBE KEYSPACE metachat;" >/dev/null 2>&1; then
+          echo "   ✅ Keyspace 'metachat' exists"
+          
+          echo ""
+          echo "📋 Tables in metachat keyspace:"
+          cqlsh cassandra -e "USE metachat; DESCRIBE TABLES;" | grep -v "^$$" | sed 's/^/   📄 /'
+          
+          echo ""
+          echo "📈 Counting tables..."
+          TABLE_COUNT=$$(cqlsh cassandra -e "USE metachat; DESCRIBE TABLES;" | wc -w)
+          echo "   ✅ Total tables created: $$TABLE_COUNT"
+          
+        else
+          echo "   ❌ Keyspace 'metachat' not found!"
+          exit 1
+        fi
+        
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "🎉 Cassandra Initialization Complete!"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "ℹ️  Connection Info:"
+        echo "   📍 Host: cassandra:9042 (from containers)"
+        echo "   📍 Host: localhost:9042 (from host machine)"
+        echo "   🔑 Keyspace: metachat"
+        echo ""
+        echo "🔧 Useful Commands:"
+        echo "   Connect:  docker exec -it cassandra cqlsh"
+        echo "   Describe: docker exec -it cassandra cqlsh -e 'DESCRIBE KEYSPACE metachat;'"
+        echo "   Status:   docker exec -it cassandra nodetool status"
+        echo ""
+    volumes:
+      - ./cassandra-init.cql:/init/init.cql:ro
+    networks:
+      - metachat_network
+    restart: "no"
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: nats
+    hostname: nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+      - "6222:6222"
+    command: 
+      - "-js"
+      - "-m"
+      - "8222"
+      - "-sd"
+      - "/data"
+      - "--store_dir"
+      - "/data/jetstream"
+      - "--max_memory_store"
+      - "256MB"
+      - "--max_file_store"
+      - "1GB"
+    volumes:
+      - nats_data:/data
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: metachat
+      POSTGRES_PASSWORD: metachat_password
+      POSTGRES_DB: metachat
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=512MB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "log_statement=all"
+      - "-c"
+      - "log_duration=on"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+        reservations:
+          cpus: '0.15'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metachat -d metachat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  eventstore:
+    image: eventstore/eventstore:23.10.0-bookworm-slim
+    container_name: eventstore
+    hostname: eventstore
+    ports:
+      - "2113:2113"
+      - "1113:1113"
+    environment:
+      EVENTSTORE_CLUSTER_SIZE: 1
+      EVENTSTORE_RUN_PROJECTIONS: All
+      EVENTSTORE_START_STANDARD_PROJECTIONS: "true"
+      EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP: "true"
+      EVENTSTORE_ENABLE_EXTERNAL_TCP: "true"
+      EVENTSTORE_INSECURE: "true"
+      EVENTSTORE_HTTP_PORT: 2113
+      EVENTSTORE_ADVERTISE_HTTP_PORT_TO_CLIENT_AS: 2113
+      EVENTSTORE_ADVERTISE_TCP_PORT_TO_CLIENT_AS: 1113
+      EVENTSTORE_MEM_DB: "false"
+      EVENTSTORE_DB: "/var/lib/eventstore"
+      EVENTSTORE_INDEX: "/var/lib/eventstore/index"
+      EVENTSTORE_LOG: "/var/log/eventstore"
+    volumes:
+      - eventstore_data:/var/lib/eventstore
+      - eventstore_logs:/var/log/eventstore
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 768M
+        reservations:
+          cpus: '0.2'
+          memory: 384M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2113/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.retention.size=5GB'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.wal-compression'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerting-rules.yml:/etc/prometheus/alerting-rules.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+        reservations:
+          cpus: '0.15'
+          memory: 256M
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "metachat2024"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-piechart-panel"
+      GF_PATHS_DATA: /var/lib/grafana
+      GF_SERVER_ROOT_URL: "http://localhost:3000"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    depends_on:
+      - prometheus
+      - loki
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    hostname: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./monitoring/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    hostname: promtail
+    volumes:
+      - ./monitoring/promtail-config.yaml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+    depends_on:
+      loki:
+        condition: service_healthy
+
+volumes:
+  zookeeper_data:
+    driver: local
+  zookeeper_logs:
+    driver: local
+  kafka_data:
+    driver: local
+  cassandra_data:
+    driver: local
+  nats_data:
+    driver: local
+  postgres_data:
+    driver: local
+  eventstore_data:
+    driver: local
+  eventstore_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+
+networks:
+  metachat_network:
+    driver: bridge
+    name: metachat_network
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16

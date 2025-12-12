@@ -1,0 +1,127 @@
+{
+  "dashboard": {
+    "title": "MetaChat Services Logs",
+    "tags": ["logs", "metachat"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+        "type": "logs",
+        "title": "All Services Logs",
+        "targets": [
+          {
+            "expr": "{service=~\".+\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "showCommonLabels": false,
+          "wrapLogMessage": true,
+          "sortOrder": "Descending",
+          "dedupStrategy": "none",
+          "enableLogDetails": true
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "type": "logs",
+        "title": "Logs by Service",
+        "targets": [
+          {
+            "expr": "{service=~\"$service\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "wrapLogMessage": true
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "type": "logs",
+        "title": "Logs by Correlation ID",
+        "targets": [
+          {
+            "expr": "{correlation_id=~\"$correlation_id\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "wrapLogMessage": true
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 4, "w": 12, "x": 0, "y": 16},
+        "type": "stat",
+        "title": "Error Rate",
+        "targets": [
+          {
+            "expr": "sum(count_over_time({level=\"error\"}[5m]))",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 10, "color": "yellow"},
+                {"value": 50, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 4, "w": 12, "x": 12, "y": 16},
+        "type": "stat",
+        "title": "Total Logs (5m)",
+        "targets": [
+          {
+            "expr": "sum(count_over_time({service=~\".+\"}[5m]))",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "service",
+          "type": "query",
+          "datasource": "Loki",
+          "query": "label_values(service)",
+          "current": {"text": "All", "value": "$__all"},
+          "includeAll": true,
+          "multi": true
+        },
+        {
+          "name": "correlation_id",
+          "type": "query",
+          "datasource": "Loki",
+          "query": "label_values(correlation_id)",
+          "current": {"text": "All", "value": "$__all"},
+          "includeAll": true,
+          "multi": false
+        }
+      ]
+    }
+  }
+}
+

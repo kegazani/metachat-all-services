@@ -1,0 +1,288 @@
+services:
+  api-gateway:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-api-gateway/Dockerfile
+    image: metachat/api-gateway:latest
+    hostname: api-gateway
+    depends_on:
+      - user-service
+      - diary-service
+      - matching-service
+      - match-request-service
+      - chat-service
+    environment:
+      - SERVICES_USER_SERVICE_ADDRESS=user-service:50051
+      - SERVICES_DIARY_SERVICE_ADDRESS=diary-service:50052
+      - SERVICES_MATCHING_SERVICE_ADDRESS=matching-service:50053
+      - SERVICES_MATCH_REQUEST_SERVICE_ADDRESS=match-request-service:50054
+      - SERVICES_CHAT_SERVICE_ADDRESS=chat-service:50055
+      - SERVER_PORT=8080
+    ports:
+      - "8080:8080"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  user-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-user-service/Dockerfile
+    image: metachat/user-service:latest
+    hostname: user-service
+    environment:
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - EVENT_STORE_TYPE=eventstoredb
+      - EVENT_STORE_URL=http://eventstore:2113
+      - EVENT_STORE_USERNAME=admin
+      - EVENT_STORE_PASSWORD=changeit
+      - SERVER_PORT=8080
+      - GRPC_PORT=50051
+    ports:
+      - "50051:50051"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  diary-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-diary-service/Dockerfile
+    image: metachat/diary-service:latest
+    hostname: diary-service
+    environment:
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_DIARY_EVENTS_TOPIC=diary-events
+      - EVENT_STORE_TYPE=eventstoredb
+      - EVENT_STORE_URL=http://eventstore:2113
+      - EVENT_STORE_USERNAME=admin
+      - EVENT_STORE_PASSWORD=changeit
+      - SERVER_PORT=8080
+      - GRPC_PORT=50052
+    ports:
+      - "50052:50052"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  matching-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-matching-service/Dockerfile
+    image: metachat/matching-service:latest
+    hostname: matching-service
+    environment:
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8080
+      - GRPC_PORT=50053
+    ports:
+      - "50053:50053"
+      - "8081:8080"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  match-request-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-match-request-service/Dockerfile
+    image: metachat/match-request-service:latest
+    hostname: match-request-service
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=postgres
+      - DATABASE_NAME=metachat
+      - SERVER_PORT=50054
+    ports:
+      - "50054:50054"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:50054/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  chat-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-chat-service/Dockerfile
+    image: metachat/chat-service:latest
+    hostname: chat-service
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=postgres
+      - DATABASE_NAME=metachat
+      - SERVER_PORT=50055
+    ports:
+      - "50055:50055"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:50055/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mood-analysis-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-mood-analysis-service/Dockerfile
+    image: metachat/mood-analysis-service:latest
+    hostname: mood-analysis-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+      - GRPC_PORT=50056
+    ports:
+      - "8000:8000"
+      - "50056:50056"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  analytics-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-analytics-service/Dockerfile
+    image: metachat/analytics-service:latest
+    hostname: analytics-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+      - GRPC_PORT=50057
+    ports:
+      - "8001:8000"
+      - "50057:50057"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  archetype-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-archetype-service/Dockerfile
+    image: metachat/archetype-service:latest
+    hostname: archetype-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+      - GRPC_PORT=50058
+    ports:
+      - "8002:8000"
+      - "50058:50058"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  biometric-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-biometric-service/Dockerfile
+    image: metachat/biometric-service:latest
+    hostname: biometric-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+    ports:
+      - "8003:8000"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  correlation-service:
+    build:
+      context: ../metachat-all-services
+      dockerfile: metachat-correlation-service/Dockerfile
+    image: metachat/correlation-service:latest
+    hostname: correlation-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+    ports:
+      - "8004:8000"
+    networks:
+      - metachat_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  metachat_network:
+    external: true
+    name: metachat_network
