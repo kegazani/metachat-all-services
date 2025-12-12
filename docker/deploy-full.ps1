@@ -104,17 +104,32 @@ foreach ($service in $SERVICES) {
     Write-Host ""
     Write-Host "📦 Building metachat/$service..." -ForegroundColor Cyan
     
-    $SERVICE_DIR = Join-Path $ROOT_DIR "metachat-all-services\metachat-$service"
-    $DOCKERFILE = Join-Path $SERVICE_DIR "Dockerfile"
+    $SERVICE_DIR = $null
+    $BUILD_CONTEXT = $null
+    $DOCKERFILE = $null
     
-    if (-not (Test-Path $DOCKERFILE)) {
-        Write-Host "⚠️  Dockerfile not found for $service, skipping..." -ForegroundColor Yellow
+    $path1 = Join-Path $ROOT_DIR "metachat-$service\Dockerfile"
+    $path2 = Join-Path (Split-Path $ROOT_DIR -Parent) "metachat-$service\Dockerfile"
+    
+    if (Test-Path $path1) {
+        $SERVICE_DIR = Join-Path $ROOT_DIR "metachat-$service"
+        $DOCKERFILE = $path1
+        $BUILD_CONTEXT = $ROOT_DIR
+    } elseif (Test-Path $path2) {
+        $SERVICE_DIR = Join-Path (Split-Path $ROOT_DIR -Parent) "metachat-$service"
+        $DOCKERFILE = $path2
+        $BUILD_CONTEXT = Split-Path $ROOT_DIR -Parent
+    } else {
+        Write-Host "⚠️  Dockerfile not found for $service" -ForegroundColor Yellow
+        Write-Host "   Tried:" -ForegroundColor Yellow
+        Write-Host "     - $path1" -ForegroundColor Gray
+        Write-Host "     - $path2" -ForegroundColor Gray
         $FAILED_BUILDS += "$service (no Dockerfile)"
         continue
     }
     
-    $buildContext = Join-Path $ROOT_DIR "metachat-all-services"
-    $result = docker build -t "metachat/$($service):latest" -f $DOCKERFILE $buildContext 2>&1
+    Write-Host "   Building from: $SERVICE_DIR" -ForegroundColor Gray
+    $result = docker build -t "metachat/$($service):latest" -f $DOCKERFILE $BUILD_CONTEXT 2>&1
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✅ $service built successfully" -ForegroundColor Green

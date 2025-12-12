@@ -109,20 +109,23 @@ for service in "${SERVICES[@]}"; do
     echo ""
     echo "📦 Building metachat/$service..."
     
-    SERVICE_DIR="$ROOT_DIR/metachat-$service"
+    SERVICE_DIR=""
+    BUILD_CONTEXT=""
     
-    if [ ! -d "$SERVICE_DIR" ]; then
-        SERVICE_DIR="$ROOT_DIR/metachat-all-services/metachat-$service"
-    fi
-    
-    if [ ! -f "$SERVICE_DIR/Dockerfile" ]; then
+    if [ -f "$ROOT_DIR/metachat-$service/Dockerfile" ]; then
+        SERVICE_DIR="$ROOT_DIR/metachat-$service"
+        BUILD_CONTEXT="$ROOT_DIR"
+    elif [ -f "$ROOT_DIR/../metachat-$service/Dockerfile" ]; then
+        SERVICE_DIR="$ROOT_DIR/../metachat-$service"
+        BUILD_CONTEXT="$(cd "$ROOT_DIR/.." && pwd)"
+    else
         echo "⚠️  Dockerfile not found for $service"
-        echo "   Tried: $SERVICE_DIR/Dockerfile"
+        echo "   Tried:"
+        echo "     - $ROOT_DIR/metachat-$service/Dockerfile"
+        echo "     - $ROOT_DIR/../metachat-$service/Dockerfile"
         FAILED_BUILDS+=("$service (no Dockerfile)")
         continue
     fi
-    
-    BUILD_CONTEXT="$(dirname "$SERVICE_DIR")"
     
     echo "   Building from: $SERVICE_DIR"
     if docker build \
