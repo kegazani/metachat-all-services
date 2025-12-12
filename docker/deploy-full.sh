@@ -13,6 +13,17 @@ echo "║          Build & Deploy Everything from Scratch              ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
+# Check for Swarm mode argument
+USE_SWARM=false
+if [ "$1" = "--swarm" ] || [ "$1" = "-s" ]; then
+    USE_SWARM=true
+    echo "🐳 Deployment Mode: Docker Swarm"
+else
+    echo "🐳 Deployment Mode: Docker Compose"
+    echo "   (Use --swarm flag for Docker Swarm mode)"
+fi
+echo ""
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 

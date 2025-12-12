@@ -1,0 +1,282 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 384M
+        reservations:
+          cpus: '0.15'
+          memory: 256M
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_HEAP_OPTS: "-Xmx768m -Xms768m"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1024M
+
+  cassandra:
+    image: cassandra:4.1
+    hostname: cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: "metachat-cluster"
+      CASSANDRA_DC: "datacenter1"
+      MAX_HEAP_SIZE: "1G"
+      HEAP_NEWSIZE: "200M"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+      - ./cassandra-init.cql:/docker-entrypoint-initdb.d/cassandra-init.cql:ro
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 10s
+
+  postgres:
+    image: postgres:15-alpine
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: metachat
+      POSTGRES_PASSWORD: metachat_password
+      POSTGRES_DB: metachat
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  eventstore:
+    image: eventstore/eventstore:23.10.0-bookworm-slim
+    hostname: eventstore
+    ports:
+      - "2113:2113"
+      - "1113:1113"
+    environment:
+      EVENTSTORE_CLUSTER_SIZE: 1
+      EVENTSTORE_RUN_PROJECTIONS: All
+      EVENTSTORE_START_STANDARD_PROJECTIONS: "true"
+      EVENTSTORE_INSECURE: "true"
+    volumes:
+      - eventstore_data:/var/lib/eventstore
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  nats:
+    image: nats:2.10-alpine
+    hostname: nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["-js", "-m", "8222"]
+    volumes:
+      - nats_data:/data
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  prometheus:
+    image: prom/prometheus:latest
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  grafana:
+    image: grafana/grafana:latest
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "metachat2024"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  loki:
+    image: grafana/loki:latest
+    hostname: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    hostname: kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  swarmpit:
+    image: swarmpit/swarmpit:latest
+    hostname: swarmpit
+    ports:
+      - "888:8080"
+    environment:
+      SWARMPIT_DB: http://swarmpit-db:5984
+      SWARMPIT_INFLUXDB: http://swarmpit-influxdb:8086
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.role == manager
+
+  swarmpit-db:
+    image: couchdb:3.3
+    hostname: swarmpit-db
+    environment:
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: swarmpit123
+    volumes:
+      - swarmpit_db_data:/opt/couchdb/data
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  swarmpit-influxdb:
+    image: influxdb:1.8
+    hostname: swarmpit-influxdb
+    environment:
+      INFLUXDB_DB: swarmpit
+      INFLUXDB_HTTP_AUTH_ENABLED: "false"
+    volumes:
+      - swarmpit_influx_data:/var/lib/influxdb
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  swarmpit-agent:
+    image: swarmpit/agent:latest
+    environment:
+      DOCKER_API_VERSION: "1.35"
+      EVENT_ENDPOINT: http://swarmpit:8080/events
+      HEALTH_CHECK_ENDPOINT: http://swarmpit:8080/version
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - metachat_network
+    deploy:
+      mode: global
+      restart_policy:
+        condition: any
+
+configs:
+  prometheus_config:
+    file: ./monitoring/prometheus.yml
+  alerting_rules:
+    file: ./monitoring/alerting-rules.yml
+
+volumes:
+  zookeeper_data:
+  zookeeper_logs:
+  kafka_data:
+  cassandra_data:
+  nats_data:
+  postgres_data:
+  eventstore_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  swarmpit_db_data:
+  swarmpit_influx_data:
+
+networks:
+  metachat_network:
+    external: true
+
