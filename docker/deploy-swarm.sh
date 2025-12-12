@@ -164,7 +164,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  🔌 API Gateway:        http://$SERVER_IP:8080"
 echo ""
 echo "📊 Management & Monitoring:"
-echo "  🐳 Swarmpit:           http://$SERVER_IP:888 (Create account on first visit)"
+echo "  🐳 Portainer:          http://$SERVER_IP:888 (Create account on first visit)"
 echo "  📊 Grafana:            http://$SERVER_IP:3000 (admin/metachat2024)"
 echo "  📉 Prometheus:         http://$SERVER_IP:9090"
 echo "  📨 Kafka UI:           http://$SERVER_IP:8090"

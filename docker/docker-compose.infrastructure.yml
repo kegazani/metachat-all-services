@@ -227,7 +227,6 @@ services:
       CASSANDRA_RACK: "rack1"
       CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
       CASSANDRA_SEEDS: "cassandra"
-      CASSANDRA_NUM_TOKENS: 256
       CASSANDRA_LISTEN_ADDRESS: cassandra
       CASSANDRA_BROADCAST_ADDRESS: cassandra
       # RPC слушает на всех интерфейсах для внешнего доступа

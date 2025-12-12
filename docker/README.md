@@ -135,7 +135,7 @@ chmod +x *.sh
 docker service scale metachat-services_mood-analysis-service=3
 ```
 
-### Swarmpit UI
+### Portainer UI
 
 После деплоя доступен веб-интерфейс:
 
@@ -147,7 +147,7 @@ http://your-server:888
 - Мониторинг всех сервисов
 - Просмотр логов в реальном времени
 - Масштабирование через UI
-- Управление стеками
+- Управление стеками и контейнерами
 
 ---
 
@@ -165,7 +165,7 @@ http://your-server:888
 
 | Сервис | Порт | Credentials |
 |--------|------|-------------|
-| Swarmpit | 888 | Создать при первом входе |
+| Portainer | 888 | Создать при первом входе |
 | Grafana | 3000 | `admin` / `metachat2024` |
 | Prometheus | 9090 | - |
 | Kafka UI | 8090 | - |
@@ -241,7 +241,7 @@ docker exec kafka kafka-console-consumer \
    - `container_memory_usage_bytes` - память
    - `rate(http_requests_total[5m])` - запросы
 
-### Swarmpit (только Swarm)
+### Portainer (только Swarm)
 
 1. Откройте http://localhost:888
 2. Создайте аккаунт администратора
@@ -327,7 +327,7 @@ docker swarm leave --force
    - Закройте все кроме 8080 (API)
    - Используйте VPN для мониторинга
 
-4. **Swarmpit:**
+4. **Portainer:**
    - Измените порт 888
    - Настройте сложный пароль
    - Ограничьте доступ по IP
@@ -338,6 +338,6 @@ docker swarm leave --force
 
 - [Quick Start](../QUICK_START.md)
 - [Все команды](../COMMANDS.md)
-- [Swarmpit Guide](SWARMPIT_GUIDE.md)
+- [Portainer Guide](https://docs.portainer.io/)
 - [Deployment Guide](../docs/DEPLOYMENT.md)
 - [Architecture](../docs/ARCHITECTURE.md)

@@ -192,17 +192,14 @@ services:
       restart_policy:
         condition: any
 
-  swarmpit:
-    image: swarmpit/swarmpit:latest
-    hostname: swarmpit
+  portainer:
+    image: portainer/portainer-ce:latest
+    hostname: portainer
     ports:
-      - "888:8080"
-    environment:
-      SWARMPIT_DB: http://admin:swarmpit123@swarmpit-db:5984
-      SWARMPIT_INFLUXDB: http://swarmpit-influxdb:8086
-      DOCKER_API_VERSION: "1.45"
+      - "888:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
     networks:
       - metachat_network
     deploy:
@@ -211,49 +208,6 @@ services:
       placement:
         constraints:
           - node.role == manager
-
-  swarmpit-db:
-    image: couchdb:3.3
-    hostname: swarmpit-db
-    environment:
-      COUCHDB_USER: admin
-      COUCHDB_PASSWORD: swarmpit123
-    volumes:
-      - swarmpit_db_data:/opt/couchdb/data
-    networks:
-      - metachat_network
-    deploy:
-      restart_policy:
-        condition: any
-
-  swarmpit-influxdb:
-    image: influxdb:1.8
-    hostname: swarmpit-influxdb
-    environment:
-      INFLUXDB_DB: swarmpit
-      INFLUXDB_HTTP_AUTH_ENABLED: "false"
-    volumes:
-      - swarmpit_influx_data:/var/lib/influxdb
-    networks:
-      - metachat_network
-    deploy:
-      restart_policy:
-        condition: any
-
-  swarmpit-agent:
-    image: swarmpit/agent:latest
-    environment:
-      DOCKER_API_VERSION: "1.45"
-      EVENT_ENDPOINT: http://swarmpit:8080/events
-      HEALTH_CHECK_ENDPOINT: http://swarmpit:8080/version
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - metachat_network
-    deploy:
-      mode: global
-      restart_policy:
-        condition: any
 
 configs:
   prometheus_config:
@@ -272,8 +226,7 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
-  swarmpit_db_data:
-  swarmpit_influx_data:
+  portainer_data:
 
 networks:
   metachat_network:
