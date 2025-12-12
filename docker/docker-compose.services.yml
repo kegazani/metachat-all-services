@@ -167,11 +167,6 @@ services:
       dockerfile: metachat-mood-analysis-service/Dockerfile
     image: metachat/mood-analysis-service:latest
     hostname: mood-analysis-service
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://metachat:metachat_password@postgres:5432/metachat_mood
       - KAFKA_BROKERS=["kafka:29092"]
@@ -179,6 +174,7 @@ services:
       - CASSANDRA_KEYSPACE=metachat
       - SERVER_PORT=8000
       - GRPC_PORT=50056
+      - DB_INIT_DELAY=10
     ports:
       - "8000:8000"
       - "50056:50056"
@@ -198,11 +194,6 @@ services:
       dockerfile: metachat-analytics-service/Dockerfile
     image: metachat/analytics-service:latest
     hostname: analytics-service
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://metachat:metachat_password@postgres:5432/metachat_analytics
       - KAFKA_BROKERS=["kafka:29092"]
@@ -210,6 +201,7 @@ services:
       - CASSANDRA_KEYSPACE=metachat
       - SERVER_PORT=8000
       - GRPC_PORT=50057
+      - DB_INIT_DELAY=10
     ports:
       - "8001:8000"
       - "50057:50057"
@@ -229,11 +221,6 @@ services:
       dockerfile: metachat-archetype-service/Dockerfile
     image: metachat/archetype-service:latest
     hostname: archetype-service
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://metachat:metachat_password@postgres:5432/metachat_personality
       - KAFKA_BROKERS=["kafka:29092"]
@@ -241,6 +228,7 @@ services:
       - CASSANDRA_KEYSPACE=metachat
       - SERVER_PORT=8000
       - GRPC_PORT=50058
+      - DB_INIT_DELAY=10
     ports:
       - "8002:8000"
       - "50058:50058"
@@ -260,17 +248,13 @@ services:
       dockerfile: metachat-biometric-service/Dockerfile
     image: metachat/biometric-service:latest
     hostname: biometric-service
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://metachat:metachat_password@postgres:5432/metachat_biometric
       - KAFKA_BROKERS=["kafka:29092"]
       - CASSANDRA_HOSTS=cassandra:9042
       - CASSANDRA_KEYSPACE=metachat
       - SERVER_PORT=8000
+      - DB_INIT_DELAY=10
     ports:
       - "8003:8000"
     networks:
@@ -289,17 +273,13 @@ services:
       dockerfile: metachat-correlation-service/Dockerfile
     image: metachat/correlation-service:latest
     hostname: correlation-service
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://metachat:metachat_password@postgres:5432/metachat_correlation
       - KAFKA_BROKERS=["kafka:29092"]
       - CASSANDRA_HOSTS=cassandra:9042
       - CASSANDRA_KEYSPACE=metachat
       - SERVER_PORT=8000
+      - DB_INIT_DELAY=10
     ports:
       - "8004:8000"
     networks:
