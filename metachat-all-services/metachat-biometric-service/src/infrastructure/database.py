@@ -19,7 +19,8 @@ class Database:
             pool_size=config.database_pool_size,
             max_overflow=config.database_max_overflow,
             echo=False,
-            pool_pre_ping=True
+            pool_pre_ping=True,
+            connect_args={"ssl": False}
         )
         self.async_session_maker = async_sessionmaker(
             self.engine,
@@ -39,7 +40,8 @@ class Database:
                 admin_engine = create_async_engine(
                     admin_url,
                     isolation_level="AUTOCOMMIT",
-                    pool_pre_ping=True
+                    pool_pre_ping=True,
+                    connect_args={"ssl": False}
                 )
                 
                 try:
