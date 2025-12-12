@@ -200,6 +200,7 @@ services:
     environment:
       SWARMPIT_DB: http://admin:swarmpit123@swarmpit-db:5984
       SWARMPIT_INFLUXDB: http://swarmpit-influxdb:8086
+      DOCKER_API_VERSION: "1.45"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
