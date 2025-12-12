@@ -53,7 +53,25 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 if docker network inspect metachat_network &> /dev/null; then
-    echo "ℹ️  Network 'metachat_network' already exists"
+    echo "⚠️  Network 'metachat_network' already exists"
+    echo "🔍 Checking if it has correct labels..."
+    
+    NETWORK_LABEL=$(docker network inspect metachat_network --format '{{.Labels}}' 2>/dev/null || echo "")
+    
+    if [[ "$NETWORK_LABEL" == *"com.docker.compose"* ]] && [[ "$NETWORK_LABEL" != *"com.docker.compose.network=metachat_network"* ]]; then
+        echo "⚠️  Network has incorrect compose labels, recreating..."
+        echo "🗑️  Removing old network..."
+        docker network rm metachat_network 2>/dev/null || {
+            echo "❌ Could not remove network. It may be in use."
+            echo "   Run: ./fix-network.sh to fix this issue"
+            exit 1
+        }
+        echo "⏳ Creating network 'metachat_network'..."
+        docker network create --driver bridge --subnet 172.25.0.0/16 metachat_network
+        echo "✅ Network recreated"
+    else
+        echo "ℹ️  Network 'metachat_network' is OK"
+    fi
 else
     echo "⏳ Creating network 'metachat_network'..."
     docker network create --driver bridge --subnet 172.25.0.0/16 metachat_network

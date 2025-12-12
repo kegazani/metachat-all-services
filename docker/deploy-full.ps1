@@ -51,7 +51,26 @@ Write-Host ""
 
 $networkExists = docker network inspect metachat_network 2>$null
 if ($networkExists) {
-    Write-Host "ℹ️  Network 'metachat_network' already exists" -ForegroundColor Yellow
+    Write-Host "⚠️  Network 'metachat_network' already exists" -ForegroundColor Yellow
+    Write-Host "🔍 Checking if it has correct labels..." -ForegroundColor Cyan
+    
+    $networkLabel = docker network inspect metachat_network --format '{{.Labels}}' 2>$null
+    
+    if ($networkLabel -and $networkLabel -match "com.docker.compose" -and $networkLabel -notmatch "com.docker.compose.network=metachat_network") {
+        Write-Host "⚠️  Network has incorrect compose labels, recreating..." -ForegroundColor Yellow
+        Write-Host "🗑️  Removing old network..." -ForegroundColor Yellow
+        docker network rm metachat_network 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Could not remove network. It may be in use." -ForegroundColor Red
+            Write-Host "   Run: .\fix-network.ps1 to fix this issue" -ForegroundColor Yellow
+            exit 1
+        }
+        Write-Host "⏳ Creating network 'metachat_network'..." -ForegroundColor Yellow
+        docker network create --driver bridge --subnet 172.25.0.0/16 metachat_network
+        Write-Host "✅ Network recreated" -ForegroundColor Green
+    } else {
+        Write-Host "ℹ️  Network 'metachat_network' is OK" -ForegroundColor Cyan
+    }
 } else {
     Write-Host "⏳ Creating network 'metachat_network'..." -ForegroundColor Yellow
     docker network create --driver bridge --subnet 172.25.0.0/16 metachat_network
