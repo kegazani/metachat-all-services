@@ -31,7 +31,17 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 if docker network inspect metachat_network &> /dev/null; then
-    echo "ℹ️  Network 'metachat_network' already exists"
+    NETWORK_DRIVER=$(docker network inspect metachat_network --format '{{.Driver}}')
+    if [ "$NETWORK_DRIVER" = "overlay" ]; then
+        echo "✅ Network 'metachat_network' already exists (overlay)"
+    else
+        echo "⚠️  Network exists but is '$NETWORK_DRIVER', need 'overlay'"
+        echo "🗑️  Removing old network..."
+        docker network rm metachat_network 2>/dev/null || true
+        echo "⏳ Creating overlay network..."
+        docker network create --driver overlay --attachable metachat_network
+        echo "✅ Overlay network created"
+    fi
 else
     echo "⏳ Creating overlay network..."
     docker network create --driver overlay --attachable metachat_network
