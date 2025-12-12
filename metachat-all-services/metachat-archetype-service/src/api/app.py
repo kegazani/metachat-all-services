@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import asyncio
 import structlog
+import os
 
 from src.config import Config
 from src.domain.big_five_classifier import BigFiveClassifier
@@ -17,14 +18,35 @@ app_state = {}
 consumer_task = None
 
 
+async def init_database_with_retry(db: Database, max_retries: int = 20, initial_delay: float = 5.0, retry_delay: float = 3.0):
+    logger.info("Waiting for database to be ready", initial_delay=initial_delay)
+    await asyncio.sleep(initial_delay)
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info("Attempting to connect to database", attempt=attempt, max_retries=max_retries)
+            await db.wait_for_postgres(max_attempts=10, delay=2.0)
+            await db.create_database_if_not_exists()
+            await db.create_tables()
+            logger.info("Database initialized successfully", attempt=attempt)
+            return
+        except Exception as e:
+            if attempt == max_retries:
+                logger.error("Failed to initialize database after max retries", error=str(e), attempts=max_retries)
+                raise
+            logger.warning("Database initialization failed, retrying...", error=str(e), attempt=attempt, max_retries=max_retries)
+            await asyncio.sleep(retry_delay)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config = Config()
     
+    logger.info("Starting Personality Service (Big Five)", service_name="archetype-service")
+    
     db = Database(config)
     
-    await db.create_database_if_not_exists()
-    await db.create_tables()
+    await init_database_with_retry(db, initial_delay=float(os.getenv("DB_INIT_DELAY", "5")))
     
     classifier = BigFiveClassifier()
     repository = PersonalityRepository(db)
@@ -45,7 +67,7 @@ async def lifespan(app: FastAPI):
     global consumer_task
     consumer_task = asyncio.create_task(kafka_consumer.consume_loop())
     
-    logger.info("Personality Service (Big Five) started")
+    logger.info("Personality Service (Big Five) started successfully")
     
     yield
     
@@ -59,6 +81,7 @@ async def lifespan(app: FastAPI):
     kafka_consumer.stop()
     kafka_producer.stop()
     await db.close()
+    logger.info("Personality Service stopped")
 
 
 app = FastAPI(
@@ -77,4 +100,3 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "personality-service"}
-

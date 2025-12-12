@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+import asyncio
 import structlog
+import os
 
 from src.config import Config
 from src.infrastructure.database import Database
@@ -14,13 +16,34 @@ from src.api.state import app_state
 logger = structlog.get_logger()
 
 
+async def init_database_with_retry(db: Database, max_retries: int = 20, initial_delay: float = 5.0, retry_delay: float = 3.0):
+    logger.info("Waiting for database to be ready", initial_delay=initial_delay)
+    await asyncio.sleep(initial_delay)
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info("Attempting to connect to database", attempt=attempt, max_retries=max_retries)
+            await db.wait_for_postgres(max_attempts=10, delay=2.0)
+            await db.create_database_if_not_exists()
+            await db.create_tables()
+            logger.info("Database initialized successfully", attempt=attempt)
+            return
+        except Exception as e:
+            if attempt == max_retries:
+                logger.error("Failed to initialize database after max retries", error=str(e), attempts=max_retries)
+                raise
+            logger.warning("Database initialization failed, retrying...", error=str(e), attempt=attempt, max_retries=max_retries)
+            await asyncio.sleep(retry_delay)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config = Config()
     
+    logger.info("Starting Biometric Service", service_name="biometric-service")
+    
     db = Database(config)
-    await db.create_database_if_not_exists()
-    await db.create_tables()
+    await init_database_with_retry(db, initial_delay=float(os.getenv("DB_INIT_DELAY", "5")))
     
     repository = BiometricRepository(db)
     kafka_producer = KafkaProducer(config)
@@ -36,7 +59,7 @@ async def lifespan(app: FastAPI):
     app_state["emotional_analyzer"] = emotional_analyzer
     app_state["day_insights_analyzer"] = day_insights_analyzer
     
-    logger.info("Biometric Service started")
+    logger.info("Biometric Service started successfully")
     yield
     
     kafka_producer.stop()
@@ -56,4 +79,3 @@ app.include_router(router)
 @app.get("/health")
 async def health():
     return {"status": "healthy", "service": "biometric-service"}
-

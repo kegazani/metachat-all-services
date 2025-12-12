@@ -1,227 +1,188 @@
 # MetaChat - Quick Start Guide
 
-Это руководство поможет вам быстро развернуть MetaChat локально с помощью Docker.
+Быстрый запуск MetaChat за 10-20 минут.
 
 ## 📋 Требования
 
-- **Docker** версии 20.10 или выше
-- **Docker Compose** версии 2.0 или выше
-- **Минимум 8GB RAM** (рекомендуется 16GB)
-- **Минимум 20GB свободного места** на диске
+- **Docker** 20.10+
+- **Docker Compose** 2.0+
+- **8GB RAM** минимум (16GB рекомендуется)
+- **20GB** свободного места на диске
 
-## 🚀 Быстрый старт
+## 🚀 Выберите режим деплоя
 
-### Для Linux/Mac:
+### 🐳 Вариант 1: Docker Compose (для разработки)
 
+Простой запуск для локальной разработки и тестирования.
+
+**Linux/Mac:**
 ```bash
 cd docker
-chmod +x deploy-full.sh
+chmod +x *.sh
 ./deploy-full.sh
 ```
 
-### Для Windows (PowerShell):
-
+**Windows:**
 ```powershell
 cd docker
 .\deploy-full.ps1
 ```
 
-## 📦 Что делает скрипт деплоя?
+### 🐝 Вариант 2: Docker Swarm (для продакшена)
 
-1. **Проверяет окружение** - Docker установлен и запущен
-2. **Очищает предыдущий деплой** - останавливает и удаляет старые контейнеры
-3. **Создает Docker сеть** - `metachat_network` для связи сервисов
-4. **Собирает все Docker образы** локально (без registry):
-   - API Gateway (Go)
-   - User Service (Go)
-   - Diary Service (Go)
-   - Matching Service (Go)
-   - Match Request Service (Go)
-   - Chat Service (Go)
-   - Mood Analysis Service (Python)
-   - Analytics Service (Python)
-   - Archetype Service (Python)
-   - Biometric Service (Python)
-   - Correlation Service (Python)
-5. **Запускает инфраструктуру**:
-   - Zookeeper
-   - Kafka + Kafka UI
-   - Cassandra
-   - PostgreSQL
-   - EventStore
-   - NATS
-6. **Инициализирует данные**:
-   - Создает топики Kafka
-   - Создает схему Cassandra
-   - Инициализирует PostgreSQL
-7. **Запускает сервисы приложения**
-8. **Запускает мониторинг**:
-   - Prometheus
-   - Grafana
-   - Loki
-   - Promtail
+Продвинутый режим с UI управлением, масштабированием и мониторингом.
 
-## 🌐 После деплоя доступны:
-
-### Основные сервисы:
-- **API Gateway**: http://localhost:8080
-  
-### Инфраструктура:
-- **Kafka UI**: http://localhost:8090
-- **PostgreSQL**: localhost:5432 (user: `metachat`, pass: `metachat_password`)
-- **Cassandra**: localhost:9042
-- **EventStore**: http://localhost:2113
-- **NATS**: http://localhost:4222 (мониторинг: :8222)
-
-### Мониторинг:
-- **Grafana**: http://localhost:3000 (логин: `admin`, пароль: `metachat2024`)
-- **Prometheus**: http://localhost:9090
-- **Loki**: http://localhost:3100
-
-## 📝 Полезные команды
-
-### Просмотр логов всех сервисов:
 ```bash
-docker compose -f docker/docker-compose.infrastructure.yml logs -f
-docker compose -f docker/docker-compose.services.yml logs -f
+cd docker
+chmod +x *.sh
+./deploy-swarm.sh
 ```
 
-### Просмотр логов конкретного сервиса:
+**Преимущества Swarm:**
+- ✅ Swarmpit UI - веб-интерфейс управления
+- ✅ Масштабирование сервисов
+- ✅ Автоматический рестарт
+- ✅ Rolling updates
+- ✅ Load balancing
+
+## ⏱️ Время деплоя
+
+- **Первый запуск:** 10-20 минут (сборка образов)
+- **Последующие:** 3-5 минут
+
+## 🌐 После запуска доступны
+
+### Основные сервисы
+
+| Сервис | URL | Логин |
+|--------|-----|-------|
+| API Gateway | http://localhost:8080 | - |
+| Swarmpit (Swarm UI) | http://localhost:888 | Создать при первом входе |
+| Grafana | http://localhost:3000 | admin / metachat2024 |
+| Prometheus | http://localhost:9090 | - |
+| Kafka UI | http://localhost:8090 | - |
+
+### Базы данных
+
+| База | Адрес | Credentials |
+|------|-------|-------------|
+| PostgreSQL | localhost:5432 | metachat / metachat_password |
+| Cassandra | localhost:9042 | - |
+| EventStore | http://localhost:2113 | - |
+| Kafka | localhost:9092 | - |
+
+## 📝 Основные команды
+
+### Docker Compose режим
+
 ```bash
-docker compose -f docker/docker-compose.services.yml logs -f api-gateway
-docker compose -f docker/docker-compose.services.yml logs -f user-service
+cd docker
+
+./deploy-full.sh      # Полный деплой
+./stop-all.sh         # Остановка
+./status.sh           # Статус
+./logs.sh all         # Все логи
+./logs.sh kafka       # Логи Kafka
 ```
 
-### Проверка статуса:
+### Docker Swarm режим
+
 ```bash
-docker compose -f docker/docker-compose.infrastructure.yml ps
-docker compose -f docker/docker-compose.services.yml ps
+cd docker
+
+./deploy-swarm.sh              # Первый деплой
+./redeploy-swarm.sh all        # Редеплой всего
+./redeploy-swarm.sh services   # Редеплой сервисов
+./stop-swarm.sh all            # Остановка
+./status-swarm.sh              # Статус и URLs
+./logs-swarm.sh kafka -f       # Логи с follow
 ```
 
-### Перезапуск сервиса:
+## ✅ Проверка работоспособности
+
+### 1. Проверьте API
+
 ```bash
-docker compose -f docker/docker-compose.services.yml restart api-gateway
+curl http://localhost:8080/health
 ```
 
-### Остановка всех сервисов:
+### 2. Откройте мониторинг
 
-**Linux/Mac:**
+- Grafana: http://localhost:3000
+- Swarmpit (Swarm): http://localhost:888
+
+### 3. Проверьте базы данных
+
 ```bash
-./docker/stop-all.sh
+# Cassandra
+docker exec -it cassandra cqlsh -e "DESCRIBE KEYSPACES;"
+
+# PostgreSQL
+docker exec -it postgres psql -U metachat -d metachat -c "\dt"
+
+# Kafka
+docker exec kafka kafka-topics --bootstrap-server localhost:29092 --list
 ```
 
-**Windows:**
-```powershell
-.\docker\stop-all.ps1
+## 🐛 Если что-то пошло не так
+
+### Проверьте логи
+
+**Compose:**
+```bash
+./logs.sh all
 ```
 
-### Подключение к базам данных:
-
-**Cassandra:**
+**Swarm:**
 ```bash
-docker exec -it cassandra cqlsh
+./logs-swarm.sh kafka -f
+docker service ls
 ```
 
-**PostgreSQL:**
+### Перезапустите
+
+**Compose:**
 ```bash
-docker exec -it postgres psql -U metachat -d metachat
+./stop-all.sh
+./deploy-full.sh
 ```
 
-## 🔧 Если что-то пошло не так
-
-### Проверка Docker:
+**Swarm:**
 ```bash
-docker --version
-docker compose version
-docker info
+./stop-swarm.sh all
+./deploy-swarm.sh
 ```
 
-### Очистка всех контейнеров и сетей:
+### Полная очистка
+
+**Compose:**
 ```bash
-docker compose -f docker/docker-compose.infrastructure.yml down -v
-docker compose -f docker/docker-compose.services.yml down -v
+docker compose -f docker-compose.infrastructure.yml down -v
+docker compose -f docker-compose.services.yml down -v
 docker network prune -f
-docker volume prune -f
 ```
 
-### Пересборка конкретного сервиса:
+**Swarm:**
 ```bash
-cd metachat-all-services
-docker build -t metachat/api-gateway:latest -f metachat-api-gateway/Dockerfile .
+./stop-swarm.sh clean
 ```
-
-### Проверка логов инфраструктуры:
-```bash
-docker logs kafka
-docker logs cassandra
-docker logs postgres
-docker logs eventstore
-```
-
-## ⏱️ Время развертывания
-
-- **Сборка образов**: 5-15 минут (зависит от мощности машины)
-- **Запуск инфраструктуры**: 2-5 минут
-- **Запуск сервисов**: 1-2 минуты
-- **Общее время**: ~10-20 минут при первом запуске
-
-## 📊 Использование ресурсов
-
-При полном деплое:
-- **RAM**: ~6-8 GB
-- **CPU**: 4-8 ядер (рекомендуется)
-- **Disk**: ~15-20 GB
-
-## 🔍 Проверка работоспособности
-
-После деплоя можно проверить:
-
-1. **API Gateway Health**:
-   ```bash
-   curl http://localhost:8080/health
-   ```
-
-2. **Kafka Topics**:
-   ```bash
-   docker exec kafka kafka-topics --bootstrap-server localhost:29092 --list
-   ```
-
-3. **Cassandra Keyspace**:
-   ```bash
-   docker exec cassandra cqlsh -e "DESCRIBE KEYSPACE metachat;"
-   ```
-
-4. **PostgreSQL Tables**:
-   ```bash
-   docker exec postgres psql -U metachat -d metachat -c "\dt"
-   ```
-
-## 🎯 Тестирование API
-
-После запуска можно импортировать Postman коллекцию:
-- Файл: `MetaChat_API.postman_collection.json`
-- Базовый URL: `http://localhost:8080`
 
 ## 📚 Дополнительная документация
 
+- [Полное руководство по деплою](docs/DEPLOYMENT.md)
+- [Docker управление](docker/README.md)
+- [Swarmpit Guide](docker/SWARMPIT_GUIDE.md)
+- [Шпаргалка команд](COMMANDS.md)
 - [Архитектура](docs/ARCHITECTURE.md)
-- [Подробное описание сервисов](docs/DETAILED_SERVICE_FLOW.md)
-- [Локальная разработка](docs/LOCAL_DEVELOPMENT.md)
-- [Диаграммы потоков](docs/FLOW_DIAGRAMS.md)
 
-## 🆘 Поддержка
+## 🎯 Следующие шаги
 
-Если возникли проблемы:
-1. Проверьте логи сервисов
-2. Убедитесь, что Docker имеет достаточно ресурсов
-3. Проверьте, что все порты свободны
-4. Попробуйте очистить и пересобрать всё заново
+1. ✅ Откройте Grafana и изучите дашборды
+2. ✅ Импортируйте Postman коллекцию
+3. ✅ Попробуйте API через http://localhost:8080
+4. ✅ Изучите [COMMANDS.md](COMMANDS.md) для всех команд
+5. ✅ Настройте [локальную разработку](docs/LOCAL_DEVELOPMENT.md)
 
-## 🎉 Готово!
+---
 
-После успешного деплоя вы можете начать использовать MetaChat API по адресу:
-**http://localhost:8080**
-
-Grafana дашборды доступны по адресу:
-**http://localhost:3000** (admin / metachat2024)
-
+**🎉 Готово! MetaChat запущен и готов к работе!**

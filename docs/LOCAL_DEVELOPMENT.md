@@ -109,13 +109,13 @@ docker compose -f docker-compose.infrastructure.yml up -d cassandra-init
 
 Например, запустите все сервисы кроме того, который разрабатываете:
 
-```bash
+  ```bash
 # Запустить все сервисы
 docker compose -f docker-compose.services.yml up -d
 
 # Остановить сервис для локальной разработки
 docker compose -f docker-compose.services.yml stop user-service
-```
+  ```
 
 ### Запуск Go сервиса локально
 

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,22 +33,29 @@ func main() {
 	})
 	logger.SetLevel(logrus.InfoLevel)
 
-	// Load configuration
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("./config")
 	viper.AddConfigPath("/app/config")
 
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
 	if err := viper.ReadInConfig(); err != nil {
-		logger.Fatalf("Failed to read config file: %v", err)
+		logger.Warnf("Failed to read config file: %v, relying on environment variables", err)
 	}
 
-	// Initialize gRPC clients
 	userServiceAddr := viper.GetString("services.user_service_address")
 	diaryServiceAddr := viper.GetString("services.diary_service_address")
 	matchingServiceAddr := viper.GetString("services.matching_service_address")
 	matchRequestServiceAddr := viper.GetString("services.match_request_service_address")
 	chatServiceAddr := viper.GetString("services.chat_service_address")
+
+	logger.Infof("Connecting to user-service at: %s", userServiceAddr)
+	logger.Infof("Connecting to diary-service at: %s", diaryServiceAddr)
+	logger.Infof("Connecting to matching-service at: %s", matchingServiceAddr)
+	logger.Infof("Connecting to match-request-service at: %s", matchRequestServiceAddr)
+	logger.Infof("Connecting to chat-service at: %s", chatServiceAddr)
 
 	userConn, err := grpc.Dial(userServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
