@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -217,7 +215,7 @@ services:
 
   api-gateway:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-api-gateway/Dockerfile
     image: metachat/api-gateway:latest
     hostname: api-gateway
@@ -254,7 +252,7 @@ services:
 
   user-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-user-service/Dockerfile
     image: metachat/user-service:latest
     hostname: user-service
@@ -285,7 +283,7 @@ services:
 
   diary-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-diary-service/Dockerfile
     image: metachat/diary-service:latest
     hostname: diary-service
@@ -316,7 +314,7 @@ services:
 
   matching-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-matching-service/Dockerfile
     image: metachat/matching-service:latest
     hostname: matching-service
@@ -343,7 +341,7 @@ services:
 
   match-request-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-match-request-service/Dockerfile
     image: metachat/match-request-service:latest
     hostname: match-request-service
@@ -372,7 +370,7 @@ services:
 
   chat-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-chat-service/Dockerfile
     image: metachat/chat-service:latest
     hostname: chat-service
@@ -401,7 +399,7 @@ services:
 
   mood-analysis-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-mood-analysis-service/Dockerfile
     image: metachat/mood-analysis-service:latest
     hostname: mood-analysis-service
@@ -430,7 +428,7 @@ services:
 
   analytics-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-analytics-service/Dockerfile
     image: metachat/analytics-service:latest
     hostname: analytics-service
@@ -457,7 +455,7 @@ services:
 
   archetype-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-archetype-service/Dockerfile
     image: metachat/archetype-service:latest
     hostname: archetype-service
@@ -484,7 +482,7 @@ services:
 
   biometric-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-biometric-service/Dockerfile
     image: metachat/biometric-service:latest
     hostname: biometric-service
@@ -511,7 +509,7 @@ services:
 
   correlation-service:
     build:
-      context: ../metachat-all-services
+      context: ..
       dockerfile: metachat-correlation-service/Dockerfile
     image: metachat/correlation-service:latest
     hostname: correlation-service
