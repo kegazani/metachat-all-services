@@ -1,196 +1,188 @@
 # MetaChat Docker Deployment
 
-Полная система деплоя MetaChat с использованием Docker и Docker Compose.
+Полное руководство по деплою MetaChat через Docker.
 
-## 🎯 Основные скрипты
+## 🎯 Два режима деплоя
 
-### ✅ Полный деплой (РЕКОМЕНДУЕТСЯ)
+### 🐳 Docker Compose (для разработки)
 
-Запускает всё с нуля: сборка образов, инфраструктура, сервисы, мониторинг.
+Простой режим для локальной разработки.
 
-**Linux/Mac:**
 ```bash
 ./deploy-full.sh
 ```
 
-**Windows:**
-```powershell
-.\deploy-full.ps1
-```
+### 🐝 Docker Swarm (для продакшена)
 
-### 🛑 Остановка всех сервисов
+Продвинутый режим с UI, масштабированием и мониторингом.
 
-**Linux/Mac:**
 ```bash
-./stop-all.sh
+./deploy-swarm.sh
 ```
 
-**Windows:**
-```powershell
-.\stop-all.ps1
-```
-
-### 🔨 Только сборка образов
-
-**Linux/Mac:**
-```bash
-./build-images.sh
-```
-
-**Windows:**
-```powershell
-.\build-images.ps1
-```
-
-### 🚀 Деплой без сборки
-
-Если образы уже собраны:
-
-**Linux/Mac:**
-```bash
-./deploy-local.sh
-```
-
-**Windows:**
-```powershell
-.\deploy-local.ps1
-```
+---
 
 ## 📁 Структура файлов
 
 ```
 docker/
-├── deploy-full.sh          # Полный деплой для Linux/Mac
-├── deploy-full.ps1         # Полный деплой для Windows
-├── stop-all.sh             # Остановка всех сервисов (Linux/Mac)
-├── stop-all.ps1            # Остановка всех сервисов (Windows)
-├── build-images.sh         # Сборка образов (Linux/Mac)
-├── deploy-local.sh         # Деплой готовых образов
+├── # === ОСНОВНЫЕ СКРИПТЫ ===
 │
-├── docker-compose.infrastructure.yml   # Инфраструктурные сервисы
-├── docker-compose.services.yml         # Приложения
+├── # Docker Compose режим
+├── deploy-full.sh/ps1      # Полный деплой
+├── stop-all.sh/ps1         # Остановка
+├── status.sh/ps1           # Статус
+├── logs.sh/ps1             # Логи
 │
-├── cassandra-init.cql      # Инициализация Cassandra
-├── postgres-init.sql       # Инициализация PostgreSQL
-├── kafka-topics-config.yaml # Конфигурация топиков Kafka
+├── # Docker Swarm режим
+├── deploy-swarm.sh         # Первый деплой
+├── redeploy-swarm.sh       # Редеплой/обновление
+├── stop-swarm.sh           # Остановка
+├── status-swarm.sh         # Статус
+├── logs-swarm.sh           # Логи
 │
-└── monitoring/             # Конфигурация мониторинга
+├── # === КОНФИГУРАЦИИ ===
+│
+├── # Docker Compose
+├── docker-compose.infrastructure.yml   # Инфраструктура
+├── docker-compose.services.yml         # Сервисы
+│
+├── # Docker Swarm
+├── docker-compose.swarm.yml            # Инфраструктура для Swarm
+├── docker-compose.swarm-services.yml   # Сервисы для Swarm
+│
+├── # === ДАННЫЕ ===
+├── cassandra-init.cql      # Схема Cassandra
+├── postgres-init.sql       # Схема PostgreSQL
+├── kafka-topics-config.yaml
+│
+├── # === МОНИТОРИНГ ===
+└── monitoring/
     ├── prometheus.yml
-    ├── loki-config.yaml
-    ├── promtail-config.yaml
-    └── grafana/
+    ├── grafana/
+    └── ...
 ```
 
-## 🐳 Docker Compose файлы
+---
 
-### docker-compose.infrastructure.yml
+## 🐳 Docker Compose режим
 
-Инфраструктурные сервисы:
-- **Zookeeper** - координация Kafka
-- **Kafka** + Kafka UI - брокер сообщений
-- **Cassandra** - NoSQL база данных
-- **PostgreSQL** - реляционная БД
-- **EventStore** - event sourcing
-- **NATS** - lightweight messaging
-- **Prometheus** - метрики
-- **Grafana** - дашборды
-- **Loki** - логи
-- **Promtail** - сборщик логов
-
-### docker-compose.services.yml
-
-Микросервисы приложения:
-- **api-gateway** - точка входа API
-- **user-service** - управление пользователями
-- **diary-service** - дневник
-- **matching-service** - подбор пар
-- **match-request-service** - запросы на матчинг
-- **chat-service** - чат
-- **mood-analysis-service** - анализ настроения
-- **analytics-service** - аналитика
-- **archetype-service** - психологические архетипы
-- **biometric-service** - биометрические данные
-- **correlation-service** - корреляции
-
-## 🔧 Управление сервисами
-
-### Просмотр логов
-
-Все логи инфраструктуры:
-```bash
-docker compose -f docker-compose.infrastructure.yml logs -f
-```
-
-Все логи приложений:
-```bash
-docker compose -f docker-compose.services.yml logs -f
-```
-
-Конкретный сервис:
-```bash
-docker compose -f docker-compose.services.yml logs -f api-gateway
-```
-
-### Статус сервисов
+### Деплой
 
 ```bash
-docker compose -f docker-compose.infrastructure.yml ps
-docker compose -f docker-compose.services.yml ps
+cd docker
+./deploy-full.sh         # Linux/Mac
+.\deploy-full.ps1        # Windows
 ```
 
-### Перезапуск сервиса
+### Команды
+
+| Команда | Описание |
+|---------|----------|
+| `./deploy-full.sh` | Полный деплой |
+| `./stop-all.sh` | Остановить всё |
+| `./status.sh` | Показать статус и URLs |
+| `./logs.sh all` | Все логи |
+| `./logs.sh <service>` | Логи конкретного сервиса |
+
+### Примеры
 
 ```bash
-docker compose -f docker-compose.services.yml restart user-service
+./logs.sh kafka              # Логи Kafka
+./logs.sh api-gateway        # Логи API Gateway
+./logs.sh infra              # Вся инфраструктура
+./logs.sh services           # Все сервисы
 ```
 
-### Остановка конкретного сервиса
+---
+
+## 🐝 Docker Swarm режим
+
+### Первый деплой
 
 ```bash
-docker compose -f docker-compose.services.yml stop user-service
+cd docker
+chmod +x *.sh
+./deploy-swarm.sh
 ```
 
-### Запуск конкретного сервиса
+### Команды управления
+
+| Команда | Описание |
+|---------|----------|
+| `./deploy-swarm.sh` | Первый деплой |
+| `./redeploy-swarm.sh all` | Редеплой всего |
+| `./redeploy-swarm.sh services` | Редеплой сервисов |
+| `./redeploy-swarm.sh <service>` | Редеплой одного сервиса |
+| `./stop-swarm.sh all` | Остановить всё |
+| `./stop-swarm.sh clean` | Полная очистка |
+| `./status-swarm.sh` | Статус и URLs |
+| `./logs-swarm.sh <service>` | Логи сервиса |
+
+### Примеры
 
 ```bash
-docker compose -f docker-compose.services.yml start user-service
+# Редеплой
+./redeploy-swarm.sh all
+./redeploy-swarm.sh mood-analysis-service
+./redeploy-swarm.sh kafka
+
+# Логи
+./logs-swarm.sh kafka -f
+./logs-swarm.sh grafana --tail 100
+
+# Масштабирование
+docker service scale metachat-services_mood-analysis-service=3
 ```
 
-## 🌐 Порты и доступ
+### Swarmpit UI
+
+После деплоя доступен веб-интерфейс:
+
+```
+http://your-server:888
+```
+
+Возможности:
+- Мониторинг всех сервисов
+- Просмотр логов в реальном времени
+- Масштабирование через UI
+- Управление стеками
+
+---
+
+## 🌐 Доступ к сервисам
+
+> 📄 **Полный список учётных данных:** [CREDENTIALS.md](CREDENTIALS.md)
 
 ### Приложение
-- **8080** - API Gateway
 
-### Инфраструктура
-- **9092** - Kafka (внешний)
-- **29092** - Kafka (внутренний)
-- **2181** - Zookeeper
-- **8090** - Kafka UI
-- **9042** - Cassandra
-- **5432** - PostgreSQL
-- **2113** - EventStore HTTP
-- **1113** - EventStore TCP
-- **4222** - NATS
-- **8222** - NATS Monitoring
+| Сервис | Порт | URL |
+|--------|------|-----|
+| API Gateway | 8080 | http://77.95.201.100:8080 |
 
 ### Мониторинг
-- **3000** - Grafana (admin/metachat2024)
-- **9090** - Prometheus
-- **3100** - Loki
 
-### Сервисы (для отладки)
-- **50051** - User Service gRPC
-- **50052** - Diary Service gRPC
-- **50053** - Matching Service gRPC
-- **50054** - Match Request Service
-- **50055** - Chat Service
-- **8000** - Mood Analysis Service HTTP
-- **8001** - Analytics Service HTTP
-- **8002** - Archetype Service HTTP
-- **8003** - Biometric Service HTTP
-- **8004** - Correlation Service HTTP
+| Сервис | Порт | Credentials |
+|--------|------|-------------|
+| Swarmpit | 888 | Создать при первом входе |
+| Grafana | 3000 | `admin` / `metachat2024` |
+| Prometheus | 9090 | - |
+| Kafka UI | 8090 | - |
 
-## 💾 Подключение к базам данных
+### Инфраструктура
+
+| Сервис | Порт | Credentials |
+|--------|------|-------------|
+| PostgreSQL | 5432 | `metachat` / `metachat_password` |
+| Cassandra | 9042 | - |
+| EventStore | 2113 | `admin` / `changeit` |
+| Kafka | 9092 | - |
+| NATS | 4222 | - |
+
+---
+
+## 🔧 Подключение к базам
 
 ### Cassandra
 
@@ -208,152 +200,144 @@ SELECT * FROM users LIMIT 10;
 docker exec -it postgres psql -U metachat -d metachat
 
 \dt
-\d+ users
-SELECT * FROM users LIMIT 10;
+SELECT * FROM users;
 ```
 
-### Kafka Topics
+### Kafka
 
 ```bash
+# Список топиков
 docker exec kafka kafka-topics --bootstrap-server localhost:29092 --list
 
+# Чтение сообщений
 docker exec kafka kafka-console-consumer \
   --bootstrap-server localhost:29092 \
   --topic metachat.user.events \
   --from-beginning
 ```
 
-## 🔄 Полная очистка
-
-Удалить все контейнеры, сети и volume:
-
-```bash
-docker compose -f docker-compose.infrastructure.yml down -v
-docker compose -f docker-compose.services.yml down -v
-docker network prune -f
-docker volume prune -f
-docker system prune -a -f
-```
-
-**⚠️ ВНИМАНИЕ: Это удалит ВСЕ данные!**
+---
 
 ## 📊 Мониторинг
 
 ### Grafana
 
-URL: http://localhost:3000
-- Логин: `admin`
-- Пароль: `metachat2024`
+1. Откройте http://77.95.201.100:3000
+2. Логин: `admin` / `metachat2024`
+3. Импортируйте дашборд:
+   - Меню → Dashboards → Import
+   - Upload JSON: `monitoring/dashboards/metachat-services-status.json`
+   - Выберите datasource: Prometheus
+   - Нажмите Import
 
-Дашборды предустановлены:
-- MetaChat Services Overview
-- Kafka Monitoring
-- Database Performance
-- System Resources
+**Доступные дашборды:**
+- **MetaChat Services Status** - статус всех сервисов (UP/DOWN)
 
 ### Prometheus
 
-URL: http://localhost:9090
+1. Откройте http://localhost:9090
+2. Примеры запросов:
+   - `up` - статус сервисов
+   - `container_memory_usage_bytes` - память
+   - `rate(http_requests_total[5m])` - запросы
 
-Примеры запросов:
-```promql
-rate(http_requests_total[5m])
-container_memory_usage_bytes
-kafka_server_brokertopicmetrics_messagesin_total
-```
+### Swarmpit (только Swarm)
 
-### Kafka UI
+1. Откройте http://localhost:888
+2. Создайте аккаунт администратора
+3. Управляйте всеми сервисами через UI
 
-URL: http://localhost:8090
+---
 
-Позволяет:
-- Просматривать топики
-- Читать сообщения
-- Управлять consumer groups
-- Мониторить брокеры
+## 🐛 Troubleshooting
 
-## 🐛 Отладка
+### Проверка статуса
 
-### Проверка health-check
-
+**Compose:**
 ```bash
-curl http://localhost:8080/health
+./status.sh
+docker compose -f docker-compose.infrastructure.yml ps
 ```
 
-### Проверка готовности инфраструктуры
-
-Kafka:
+**Swarm:**
 ```bash
-docker exec kafka kafka-broker-api-versions --bootstrap-server localhost:29092
+./status-swarm.sh
+docker service ls
+docker stack ls
 ```
 
-Cassandra:
+### Логи ошибок
+
+**Compose:**
 ```bash
-docker exec cassandra cqlsh -e "SELECT release_version FROM system.local;"
+./logs.sh kafka
+docker compose -f docker-compose.infrastructure.yml logs kafka
 ```
 
-PostgreSQL:
+**Swarm:**
 ```bash
-docker exec postgres pg_isready -U metachat
+./logs-swarm.sh kafka -f
+docker service logs metachat-infra_kafka
 ```
 
-EventStore:
+### Перезапуск
+
+**Compose:**
 ```bash
-curl http://localhost:2113/health/live
+./stop-all.sh
+./deploy-full.sh
 ```
 
-### Проверка сети
-
+**Swarm:**
 ```bash
-docker network inspect metachat_network
+./redeploy-swarm.sh all
+# или полностью:
+./stop-swarm.sh all
+./deploy-swarm.sh
 ```
 
-### Использование ресурсов
+### Полная очистка
 
+**Compose:**
 ```bash
-docker stats
+docker compose -f docker-compose.infrastructure.yml down -v
+docker compose -f docker-compose.services.yml down -v
+docker system prune -a -f
 ```
 
-## 📝 Переменные окружения
-
-Основные переменные можно переопределить через `.env` файл:
-
-```env
-CASSANDRA_HOSTS=cassandra:9042
-KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-POSTGRES_USER=metachat
-POSTGRES_PASSWORD=metachat_password
+**Swarm:**
+```bash
+./stop-swarm.sh clean
+docker swarm leave --force
 ```
 
-## 🔐 Безопасность
+---
 
-**Для продакшн окружения:**
-1. Измените все пароли по умолчанию
-2. Настройте SSL/TLS для всех сервисов
-3. Ограничьте доступ к портам через firewall
-4. Используйте Docker secrets для чувствительных данных
-5. Настройте аутентификацию для Kafka и EventStore
+## 🔐 Безопасность для продакшена
 
-## ⚡ Оптимизация производительности
+1. **Измените пароли:**
+   - PostgreSQL: `POSTGRES_PASSWORD`
+   - Grafana: `GF_SECURITY_ADMIN_PASSWORD`
 
-### Для разработки (ограниченные ресурсы)
+2. **Используйте HTTPS:**
+   - Настройте reverse proxy (nginx/traefik)
+   - SSL сертификаты
 
-Закомментируйте в docker-compose файлах неиспользуемые сервисы:
-- Biometric Service
-- Correlation Service
-- Analytics Service
+3. **Ограничьте порты:**
+   - Закройте все кроме 8080 (API)
+   - Используйте VPN для мониторинга
 
-### Для продакшна
+4. **Swarmpit:**
+   - Измените порт 888
+   - Настройте сложный пароль
+   - Ограничьте доступ по IP
 
-1. Увеличьте лимиты ресурсов в deploy секциях
-2. Настройте репликацию для Kafka и Cassandra
-3. Используйте внешние managed базы данных
-4. Настройте автоскейлинг
+---
 
-## 📚 Дополнительные ресурсы
+## 📚 Дополнительно
 
-- [Quick Start Guide](../QUICK_START.md)
-- [Architecture Documentation](../docs/ARCHITECTURE.md)
-- [API Documentation](../docs/API.md)
-- [Troubleshooting Guide](../docs/TROUBLESHOOTING.md)
-
+- [Quick Start](../QUICK_START.md)
+- [Все команды](../COMMANDS.md)
+- [Swarmpit Guide](SWARMPIT_GUIDE.md)
+- [Deployment Guide](../docs/DEPLOYMENT.md)
+- [Architecture](../docs/ARCHITECTURE.md)
