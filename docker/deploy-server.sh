@@ -24,15 +24,15 @@ EOF
 
 # Обновление образов
 echo "📥 Pulling latest images..."
-docker-compose -f docker-compose.production-light.yml pull
+docker compose -f docker-compose.production-light.yml pull
 
 # Остановка старых контейнеров
 echo "🛑 Stopping old containers..."
-docker-compose -f docker-compose.production-light.yml down
+docker compose -f docker-compose.production-light.yml down
 
 # Запуск новых контейнеров
 echo "▶️  Starting new containers..."
-docker-compose -f docker-compose.production-light.yml up -d
+docker compose -f docker-compose.production-light.yml up -d
 
 # Ожидание готовности
 echo "⏳ Waiting for services to be ready..."
@@ -40,7 +40,7 @@ sleep 30
 
 # Проверка здоровья
 echo "🏥 Checking service health..."
-docker-compose -f docker-compose.production-light.yml ps
+docker compose -f docker-compose.production-light.yml ps
 
 # Очистка старых образов
 echo "🧹 Cleaning up old images..."

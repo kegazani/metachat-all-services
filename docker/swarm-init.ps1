@@ -83,7 +83,7 @@ function Deploy-Infrastructure {
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Yellow
     
     Push-Location $PSScriptRoot
-    docker-compose -f docker-compose.infrastructure.yml up -d
+    docker compose -f docker-compose.infrastructure.yml up -d
     Pop-Location
     
     Write-Host "✅ Infrastructure services deployed" -ForegroundColor Green
