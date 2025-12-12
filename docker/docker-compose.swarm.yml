@@ -242,7 +242,7 @@ services:
   swarmpit-agent:
     image: swarmpit/agent:latest
     environment:
-      DOCKER_API_VERSION: "1.35"
+      DOCKER_API_VERSION: "1.45"
       EVENT_ENDPOINT: http://swarmpit:8080/events
       HEALTH_CHECK_ENDPOINT: http://swarmpit:8080/version
     volumes:
