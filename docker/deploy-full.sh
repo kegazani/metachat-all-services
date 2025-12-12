@@ -112,17 +112,27 @@ for service in "${SERVICES[@]}"; do
     SERVICE_DIR=""
     BUILD_CONTEXT=""
     
-    if [ -f "$ROOT_DIR/metachat-$service/Dockerfile" ]; then
-        SERVICE_DIR="$ROOT_DIR/metachat-$service"
-        BUILD_CONTEXT="$ROOT_DIR"
-    elif [ -f "$ROOT_DIR/../metachat-$service/Dockerfile" ]; then
-        SERVICE_DIR="$ROOT_DIR/../metachat-$service"
-        BUILD_CONTEXT="$(cd "$ROOT_DIR/.." && pwd)"
-    else
+    # Try different possible locations
+    POSSIBLE_PATHS=(
+        "$ROOT_DIR/metachat-$service"
+        "$ROOT_DIR/metachat-all-services/metachat-$service"
+        "$ROOT_DIR/../metachat-$service"
+    )
+    
+    for path in "${POSSIBLE_PATHS[@]}"; do
+        if [ -f "$path/Dockerfile" ]; then
+            SERVICE_DIR="$path"
+            BUILD_CONTEXT="$(dirname "$path")"
+            break
+        fi
+    done
+    
+    if [ -z "$SERVICE_DIR" ]; then
         echo "⚠️  Dockerfile not found for $service"
         echo "   Tried:"
-        echo "     - $ROOT_DIR/metachat-$service/Dockerfile"
-        echo "     - $ROOT_DIR/../metachat-$service/Dockerfile"
+        for path in "${POSSIBLE_PATHS[@]}"; do
+            echo "     - $path/Dockerfile"
+        done
         FAILED_BUILDS+=("$service (no Dockerfile)")
         continue
     fi

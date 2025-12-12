@@ -108,22 +108,29 @@ foreach ($service in $SERVICES) {
     $BUILD_CONTEXT = $null
     $DOCKERFILE = $null
     
-    $path1 = Join-Path $ROOT_DIR "metachat-$service\Dockerfile"
-    $path2 = Join-Path (Split-Path $ROOT_DIR -Parent) "metachat-$service\Dockerfile"
+    # Try different possible locations
+    $POSSIBLE_PATHS = @(
+        (Join-Path $ROOT_DIR "metachat-$service"),
+        (Join-Path $ROOT_DIR "metachat-all-services\metachat-$service"),
+        (Join-Path (Split-Path $ROOT_DIR -Parent) "metachat-$service")
+    )
     
-    if (Test-Path $path1) {
-        $SERVICE_DIR = Join-Path $ROOT_DIR "metachat-$service"
-        $DOCKERFILE = $path1
-        $BUILD_CONTEXT = $ROOT_DIR
-    } elseif (Test-Path $path2) {
-        $SERVICE_DIR = Join-Path (Split-Path $ROOT_DIR -Parent) "metachat-$service"
-        $DOCKERFILE = $path2
-        $BUILD_CONTEXT = Split-Path $ROOT_DIR -Parent
-    } else {
+    foreach ($path in $POSSIBLE_PATHS) {
+        $testPath = Join-Path $path "Dockerfile"
+        if (Test-Path $testPath) {
+            $SERVICE_DIR = $path
+            $DOCKERFILE = $testPath
+            $BUILD_CONTEXT = Split-Path $path -Parent
+            break
+        }
+    }
+    
+    if (-not $SERVICE_DIR) {
         Write-Host "⚠️  Dockerfile not found for $service" -ForegroundColor Yellow
         Write-Host "   Tried:" -ForegroundColor Yellow
-        Write-Host "     - $path1" -ForegroundColor Gray
-        Write-Host "     - $path2" -ForegroundColor Gray
+        foreach ($path in $POSSIBLE_PATHS) {
+            Write-Host "     - $(Join-Path $path 'Dockerfile')" -ForegroundColor Gray
+        }
         $FAILED_BUILDS += "$service (no Dockerfile)"
         continue
     }
