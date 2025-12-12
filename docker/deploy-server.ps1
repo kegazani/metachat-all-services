@@ -28,7 +28,7 @@ docker compose -f docker-compose.production-light.yml pull
 
 # Остановка старых контейнеров
 Write-Host "🛑 Stopping old containers..." -ForegroundColor Yellow
-docker compose -f docker-compose.production-light.yml down
+docker compose -f docker-compose.production-light.yml down --remove-orphans
 
 # Запуск новых контейнеров
 Write-Host "▶️  Starting new containers..." -ForegroundColor Yellow

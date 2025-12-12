@@ -28,7 +28,7 @@ docker compose -f docker-compose.production-light.yml pull
 
 # Остановка старых контейнеров
 echo "🛑 Stopping old containers..."
-docker compose -f docker-compose.production-light.yml down
+docker compose -f docker-compose.production-light.yml down --remove-orphans
 
 # Запуск новых контейнеров
 echo "▶️  Starting new containers..."
