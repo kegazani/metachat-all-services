@@ -1,10 +1,22 @@
 #!/bin/bash
 set -e
 
+if command -v docker-compose &> /dev/null; then
+    DC="docker-compose"
+elif docker compose version &> /dev/null; then
+    DC="docker compose"
+else
+    echo "❌ Docker Compose not found!"
+    echo "Install: apt-get install docker-compose-plugin -y"
+    exit 1
+fi
+
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║     MetaChat Light Deployment (4 cores / 8GB RAM)           ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "Using: $DC"
 echo ""
 
 check_resources() {
@@ -74,7 +86,7 @@ deploy() {
     
     echo ""
     echo "📦 Step 1: Starting infrastructure (Kafka, Cassandra, PostgreSQL)..."
-    docker-compose -f docker-compose.production-light.yml up -d \
+    $DC -f docker-compose.production-light.yml up -d \
         zookeeper kafka cassandra postgres eventstore nats
     
     echo ""
@@ -85,7 +97,7 @@ deploy() {
     echo "🔍 Checking database health..."
     
     for i in {1..30}; do
-        if docker-compose -f docker-compose.production-light.yml exec -T cassandra cqlsh -e "describe keyspaces" >/dev/null 2>&1; then
+        if $DC -f docker-compose.production-light.yml exec -T cassandra cqlsh -e "describe keyspaces" >/dev/null 2>&1; then
             echo "  ✅ Cassandra is ready"
             break
         fi
@@ -93,13 +105,13 @@ deploy() {
         sleep 10
     done
     
-    if docker-compose -f docker-compose.production-light.yml exec -T postgres pg_isready -U metachat >/dev/null 2>&1; then
+    if $DC -f docker-compose.production-light.yml exec -T postgres pg_isready -U metachat >/dev/null 2>&1; then
         echo "  ✅ PostgreSQL is ready"
     fi
     
     echo ""
     echo "📦 Step 2: Starting application services..."
-    docker-compose -f docker-compose.production-light.yml up -d \
+    $DC -f docker-compose.production-light.yml up -d \
         user-service diary-service matching-service \
         match-request-service chat-service
     
@@ -107,7 +119,7 @@ deploy() {
     
     echo ""
     echo "📦 Step 3: Starting AI/ML services..."
-    docker-compose -f docker-compose.production-light.yml up -d \
+    $DC -f docker-compose.production-light.yml up -d \
         mood-analysis-service analytics-service \
         archetype-service biometric-service correlation-service
     
@@ -115,11 +127,11 @@ deploy() {
     
     echo ""
     echo "📦 Step 4: Starting API Gateway..."
-    docker-compose -f docker-compose.production-light.yml up -d api-gateway
+    $DC -f docker-compose.production-light.yml up -d api-gateway
     
     echo ""
     echo "📦 Step 5: Starting Monitoring..."
-    docker-compose -f docker-compose.production-light.yml up -d prometheus grafana
+    $DC -f docker-compose.production-light.yml up -d prometheus grafana
     
     echo ""
     echo "✅ Deployment complete!"
@@ -132,7 +144,7 @@ show_status() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
     cd "$(dirname "$0")"
-    docker-compose -f docker-compose.production-light.yml ps
+    $DC -f docker-compose.production-light.yml ps
     
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -166,16 +178,16 @@ case "${1:-}" in
         ;;
     "stop")
         cd "$(dirname "$0")"
-        docker-compose -f docker-compose.production-light.yml down
+        $DC -f docker-compose.production-light.yml down
         echo "✅ All services stopped"
         ;;
     "logs")
         cd "$(dirname "$0")"
-        docker-compose -f docker-compose.production-light.yml logs -f --tail=100 ${2:-}
+        $DC -f docker-compose.production-light.yml logs -f --tail=100 ${2:-}
         ;;
     "restart")
         cd "$(dirname "$0")"
-        docker-compose -f docker-compose.production-light.yml restart ${2:-}
+        $DC -f docker-compose.production-light.yml restart ${2:-}
         ;;
     *)
         check_resources
