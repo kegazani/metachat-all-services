@@ -656,8 +656,5 @@ volumes:
 
 networks:
   metachat_network:
-    driver: bridge
+    external: true
     name: metachat_network
-    ipam:
-      config:
-        - subnet: 172.25.0.0/16

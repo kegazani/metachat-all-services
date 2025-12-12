@@ -18,6 +18,10 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$SCRIPT_DIR"
 
+echo "📂 Root directory: $ROOT_DIR"
+echo "📂 Script directory: $SCRIPT_DIR"
+echo ""
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🔍 Step 1: Environment Check"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -105,18 +109,26 @@ for service in "${SERVICES[@]}"; do
     echo ""
     echo "📦 Building metachat/$service..."
     
-    SERVICE_DIR="$ROOT_DIR/metachat-all-services/metachat-$service"
+    SERVICE_DIR="$ROOT_DIR/metachat-$service"
+    
+    if [ ! -d "$SERVICE_DIR" ]; then
+        SERVICE_DIR="$ROOT_DIR/metachat-all-services/metachat-$service"
+    fi
     
     if [ ! -f "$SERVICE_DIR/Dockerfile" ]; then
-        echo "⚠️  Dockerfile not found for $service, skipping..."
+        echo "⚠️  Dockerfile not found for $service"
+        echo "   Tried: $SERVICE_DIR/Dockerfile"
         FAILED_BUILDS+=("$service (no Dockerfile)")
         continue
     fi
     
+    BUILD_CONTEXT="$(dirname "$SERVICE_DIR")"
+    
+    echo "   Building from: $SERVICE_DIR"
     if docker build \
         -t "metachat/$service:latest" \
         -f "$SERVICE_DIR/Dockerfile" \
-        "$ROOT_DIR/metachat-all-services" > /dev/null 2>&1; then
+        "$BUILD_CONTEXT" > /dev/null 2>&1; then
         echo "✅ $service built successfully"
         BUILT_COUNT=$((BUILT_COUNT + 1))
     else
