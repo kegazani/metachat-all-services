@@ -24,15 +24,15 @@ TAG=$Tag
 
 # Обновление образов
 Write-Host "📥 Pulling latest images..." -ForegroundColor Yellow
-docker-compose -f docker-compose.production.yml pull
+docker-compose -f docker-compose.production-light.yml pull
 
 # Остановка старых контейнеров
 Write-Host "🛑 Stopping old containers..." -ForegroundColor Yellow
-docker-compose -f docker-compose.production.yml down
+docker-compose -f docker-compose.production-light.yml down
 
 # Запуск новых контейнеров
 Write-Host "▶️  Starting new containers..." -ForegroundColor Yellow
-docker-compose -f docker-compose.production.yml up -d
+docker-compose -f docker-compose.production-light.yml up -d
 
 # Ожидание готовности
 Write-Host "⏳ Waiting for services to be ready..." -ForegroundColor Yellow
@@ -40,7 +40,7 @@ Start-Sleep -Seconds 30
 
 # Проверка здоровья
 Write-Host "🏥 Checking service health..." -ForegroundColor Yellow
-docker-compose -f docker-compose.production.yml ps
+docker-compose -f docker-compose.production-light.yml ps
 
 # Очистка старых образов
 Write-Host "🧹 Cleaning up old images..." -ForegroundColor Yellow
