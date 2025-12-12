@@ -1,0 +1,197 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    image: metachat/api-gateway:latest
+    hostname: api-gateway
+    environment:
+      - SERVICES_USER_SERVICE_ADDRESS=user-service:50051
+      - SERVICES_DIARY_SERVICE_ADDRESS=diary-service:50052
+      - SERVICES_MATCHING_SERVICE_ADDRESS=matching-service:50053
+      - SERVICES_MATCH_REQUEST_SERVICE_ADDRESS=match-request-service:50054
+      - SERVICES_CHAT_SERVICE_ADDRESS=chat-service:50055
+      - SERVER_PORT=8080
+    ports:
+      - "8080:8080"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 10s
+
+  user-service:
+    image: metachat/user-service:latest
+    hostname: user-service
+    environment:
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - EVENT_STORE_URL=http://eventstore:2113
+      - GRPC_PORT=50051
+    ports:
+      - "50051:50051"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  diary-service:
+    image: metachat/diary-service:latest
+    hostname: diary-service
+    environment:
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - EVENT_STORE_URL=http://eventstore:2113
+      - GRPC_PORT=50052
+    ports:
+      - "50052:50052"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  matching-service:
+    image: metachat/matching-service:latest
+    hostname: matching-service
+    environment:
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - GRPC_PORT=50053
+    ports:
+      - "50053:50053"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  match-request-service:
+    image: metachat/match-request-service:latest
+    hostname: match-request-service
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=metachat
+      - DATABASE_PASSWORD=metachat_password
+      - DATABASE_NAME=metachat
+      - SERVER_PORT=50054
+    ports:
+      - "50054:50054"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  chat-service:
+    image: metachat/chat-service:latest
+    hostname: chat-service
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=metachat
+      - DATABASE_PASSWORD=metachat_password
+      - DATABASE_NAME=metachat
+      - SERVER_PORT=50055
+    ports:
+      - "50055:50055"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  mood-analysis-service:
+    image: metachat/mood-analysis-service:latest
+    hostname: mood-analysis-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+      - GRPC_PORT=50056
+    ports:
+      - "8000:8000"
+      - "50056:50056"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  analytics-service:
+    image: metachat/analytics-service:latest
+    hostname: analytics-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+      - GRPC_PORT=50057
+    ports:
+      - "8001:8000"
+      - "50057:50057"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  archetype-service:
+    image: metachat/archetype-service:latest
+    hostname: archetype-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+      - GRPC_PORT=50058
+    ports:
+      - "8002:8000"
+      - "50058:50058"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  biometric-service:
+    image: metachat/biometric-service:latest
+    hostname: biometric-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+    ports:
+      - "8003:8000"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+  correlation-service:
+    image: metachat/correlation-service:latest
+    hostname: correlation-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CASSANDRA_HOSTS=cassandra:9042
+      - CASSANDRA_KEYSPACE=metachat
+      - SERVER_PORT=8000
+    ports:
+      - "8004:8000"
+    networks:
+      - metachat_network
+    deploy:
+      restart_policy:
+        condition: any
+
+networks:
+  metachat_network:
+    external: true
+

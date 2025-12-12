@@ -118,7 +118,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 echo "⏳ Deploying infrastructure..."
-docker stack deploy -c docker-compose.infrastructure.yml metachat-infra
+docker stack deploy -c docker-compose.swarm.yml metachat-infra
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -136,7 +136,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 echo "⏳ Deploying application services..."
-docker stack deploy -c docker-compose.services.yml metachat-services
+docker stack deploy -c docker-compose.swarm-services.yml metachat-services
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
