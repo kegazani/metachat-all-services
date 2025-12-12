@@ -1,0 +1,354 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 384M
+        reservations:
+          cpus: '0.15'
+          memory: 256M
+      restart_policy:
+        condition: unless-stopped
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://77.95.201.100:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_LOG_SEGMENT_BYTES: 268435456
+      KAFKA_HEAP_OPTS: "-Xmx768m -Xms768m"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1024M
+        reservations:
+          cpus: '0.25'
+          memory: 768M
+      restart_policy:
+        condition: unless-stopped
+        delay: 10s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    hostname: kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: metachat
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+      restart_policy:
+        condition: unless-stopped
+
+  cassandra:
+    image: cassandra:4.1
+    hostname: cassandra
+    ports:
+      - "9042:9042"
+      - "7000:7000"
+      - "7001:7001"
+    environment:
+      CASSANDRA_CLUSTER_NAME: "metachat-cluster"
+      CASSANDRA_DC: "datacenter1"
+      CASSANDRA_RACK: "rack1"
+      CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
+      CASSANDRA_SEEDS: "cassandra"
+      CASSANDRA_NUM_TOKENS: 256
+      CASSANDRA_LISTEN_ADDRESS: cassandra
+      CASSANDRA_BROADCAST_ADDRESS: cassandra
+      CASSANDRA_RPC_ADDRESS: "0.0.0.0"
+      CASSANDRA_BROADCAST_RPC_ADDRESS: cassandra
+      MAX_HEAP_SIZE: "1G"
+      HEAP_NEWSIZE: "200M"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2048M
+        reservations:
+          cpus: '0.5'
+          memory: 1024M
+      restart_policy:
+        condition: unless-stopped
+
+  nats:
+    image: nats:2.10-alpine
+    hostname: nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+      - "6222:6222"
+    command: 
+      - "-js"
+      - "-m"
+      - "8222"
+      - "-sd"
+      - "/data"
+      - "--store_dir"
+      - "/data/jetstream"
+      - "--max_memory_store"
+      - "256MB"
+      - "--max_file_store"
+      - "1GB"
+    volumes:
+      - nats_data:/data
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+      restart_policy:
+        condition: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: metachat
+      POSTGRES_PASSWORD: metachat_password
+      POSTGRES_DB: metachat
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 768M
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+      restart_policy:
+        condition: unless-stopped
+
+  eventstore:
+    image: eventstore/eventstore:23.10.0-bookworm-slim
+    hostname: eventstore
+    ports:
+      - "2113:2113"
+      - "1113:1113"
+    environment:
+      EVENTSTORE_CLUSTER_SIZE: 1
+      EVENTSTORE_RUN_PROJECTIONS: All
+      EVENTSTORE_START_STANDARD_PROJECTIONS: "true"
+      EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP: "true"
+      EVENTSTORE_ENABLE_EXTERNAL_TCP: "true"
+      EVENTSTORE_INSECURE: "true"
+      EVENTSTORE_HTTP_PORT: 2113
+      EVENTSTORE_MEM_DB: "false"
+    volumes:
+      - eventstore_data:/var/lib/eventstore
+      - eventstore_logs:/var/log/eventstore
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 768M
+      restart_policy:
+        condition: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.retention.size=5GB'
+      - '--web.enable-lifecycle'
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+      - source: alerting_rules
+        target: /etc/prometheus/alerting-rules.yml
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+      restart_policy:
+        condition: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "metachat2024"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: "grafana-clock-panel,grafana-piechart-panel"
+      GF_SERVER_ROOT_URL: "http://77.95.201.100:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+      restart_policy:
+        condition: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    hostname: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+      restart_policy:
+        condition: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    hostname: promtail
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - metachat_network
+    deploy:
+      mode: global
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
+      restart_policy:
+        condition: unless-stopped
+
+volumes:
+  zookeeper_data:
+  zookeeper_logs:
+  kafka_data:
+  cassandra_data:
+  nats_data:
+  postgres_data:
+  eventstore_data:
+  eventstore_logs:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+
+networks:
+  metachat_network:
+    driver: overlay
+    attachable: true
+
+configs:
+  prometheus_config:
+    file: ./monitoring/prometheus.yml
+  alerting_rules:
+    file: ./monitoring/alerting-rules.yml
+
