@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 import numpy as np
 import structlog
 
-from src.domain.archetype_classifier import ArchetypeClassifier
-from src.infrastructure.repository import ArchetypeRepository
+from src.domain.big_five_classifier import BigFiveClassifier
+from src.infrastructure.repository import PersonalityRepository
 from src.infrastructure.kafka_client import KafkaProducer
 from src.infrastructure.database import Database
 from src.config import Config
@@ -16,8 +16,8 @@ logger = structlog.get_logger()
 class EventHandler:
     def __init__(
         self,
-        classifier: ArchetypeClassifier,
-        repository: ArchetypeRepository,
+        classifier: BigFiveClassifier,
+        repository: PersonalityRepository,
         kafka_producer: KafkaProducer,
         db: Database,
         config: Config
@@ -75,6 +75,24 @@ class EventHandler:
                             user_id,
                             user_data.accumulated_tokens,
                             aggregated_emotion_vector=new_emotions,
+                            topic_distribution=topic_distribution
+                        )
+                    else:
+                        topic_distribution = {}
+                        for topic in detected_topics:
+                            topic_distribution[topic] = topic_distribution.get(topic, 0) + 1
+                        
+                        total_topic_count = sum(topic_distribution.values())
+                        if total_topic_count > 0:
+                            topic_distribution = {k: v / total_topic_count for k, v in topic_distribution.items()}
+                        else:
+                            topic_distribution = {}
+                        
+                        await self.repository.create_or_update_user_data(
+                            session,
+                            user_id,
+                            accumulated_tokens=0,
+                            aggregated_emotion_vector=emotion_vector,
                             topic_distribution=topic_distribution
                         )
                     break
@@ -161,12 +179,12 @@ class EventHandler:
                         reason = "time_threshold"
                 
                 if should_calculate:
-                    await self._calculate_archetype(session, user_data, latest_calculation, reason, correlation_id)
+                    await self._calculate_big_five(session, user_data, latest_calculation, reason, correlation_id)
                 
             finally:
                 await session.close()
     
-    async def _calculate_archetype(
+    async def _calculate_big_five(
         self,
         session,
         user_data,
@@ -182,7 +200,7 @@ class EventHandler:
             avg_valence = sum(emotion_vector[:4]) - sum(emotion_vector[4:]) if len(emotion_vector) >= 8 else 0.0
             avg_arousal = sum(emotion_vector[::2]) - sum(emotion_vector[1::2]) if len(emotion_vector) >= 8 else 0.0
             
-            archetype, probabilities, confidence = self.classifier.classify(
+            big_five_scores = self.classifier.classify(
                 emotion_vector,
                 topic_distribution,
                 stylistic_metrics,
@@ -190,20 +208,29 @@ class EventHandler:
                 avg_arousal
             )
             
+            dominant_trait = self.classifier.get_dominant_trait(big_five_scores)
+            confidence = self.classifier.calculate_confidence(big_five_scores)
+            
             if confidence < self.config.min_confidence_threshold:
                 logger.info(
-                    "Archetype confidence too low",
+                    "Big Five confidence too low",
                     user_id=user_data.user_id,
                     confidence=confidence,
-                    threshold=self.config.min_confidence_threshold
+                    threshold=self.config.min_confidence_threshold,
+                    dominant_trait=dominant_trait,
+                    scores=big_five_scores
                 )
                 return
             
             calculation = await self.repository.save_calculation(
                 session,
                 user_data.user_id,
-                archetype,
-                probabilities,
+                big_five_scores["openness"],
+                big_five_scores["conscientiousness"],
+                big_five_scores["extraversion"],
+                big_five_scores["agreeableness"],
+                big_five_scores["neuroticism"],
+                dominant_trait,
                 confidence,
                 self.config.model_version,
                 user_data.accumulated_tokens,
@@ -214,21 +241,45 @@ class EventHandler:
                 }
             )
             
-            if previous_calculation and previous_calculation.archetype == archetype:
-                self.kafka_producer.publish_archetype_updated(
-                    user_data.user_id,
-                    archetype,
-                    probabilities,
-                    confidence,
-                    self.config.model_version,
-                    user_data.accumulated_tokens,
-                    correlation_id=correlation_id
+            if previous_calculation:
+                prev_scores = {
+                    "openness": previous_calculation.openness,
+                    "conscientiousness": previous_calculation.conscientiousness,
+                    "extraversion": previous_calculation.extraversion,
+                    "agreeableness": previous_calculation.agreeableness,
+                    "neuroticism": previous_calculation.neuroticism
+                }
+                
+                scores_changed = any(
+                    abs(big_five_scores[k] - prev_scores[k]) > 0.1 
+                    for k in big_five_scores.keys()
                 )
+                
+                if not scores_changed:
+                    self.kafka_producer.publish_personality_updated(
+                        user_data.user_id,
+                        big_five_scores,
+                        dominant_trait,
+                        confidence,
+                        self.config.model_version,
+                        user_data.accumulated_tokens,
+                        correlation_id=correlation_id
+                    )
+                else:
+                    self.kafka_producer.publish_personality_assigned(
+                        user_data.user_id,
+                        big_five_scores,
+                        dominant_trait,
+                        confidence,
+                        self.config.model_version,
+                        user_data.accumulated_tokens,
+                        correlation_id=correlation_id
+                    )
             else:
-                self.kafka_producer.publish_archetype_assigned(
+                self.kafka_producer.publish_personality_assigned(
                     user_data.user_id,
-                    archetype,
-                    probabilities,
+                    big_five_scores,
+                    dominant_trait,
                     confidence,
                     self.config.model_version,
                     user_data.accumulated_tokens,
@@ -236,15 +287,16 @@ class EventHandler:
                 )
             
             logger.info(
-                "Archetype calculated",
+                "Big Five calculated",
                 user_id=user_data.user_id,
-                archetype=archetype,
+                dominant_trait=dominant_trait,
                 confidence=confidence,
+                scores=big_five_scores,
                 reason=reason
             )
             
         except Exception as e:
-            logger.error("Error calculating archetype", error=str(e), exc_info=True)
+            logger.error("Error calculating Big Five", error=str(e), exc_info=True)
     
     async def handle_message(
         self,

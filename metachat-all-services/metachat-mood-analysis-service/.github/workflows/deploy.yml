@@ -17,9 +17,9 @@ jobs:
         env:
           SERVICES_HOST: ${{ secrets.SERVICES_HOST }}
           SERVICES_USER: ${{ secrets.SERVICES_USER }}
+          INFRA_CASSANDRA: ${{ secrets.INFRA_CASSANDRA_HOST }}
+          INFRA_KAFKA: ${{ secrets.INFRA_KAFKA_HOST }}
         run: |
           ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "mkdir -p /opt/metachat-services/mood-analysis-service"
           rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ $SERVICES_USER@$SERVICES_HOST:/opt/metachat-services/mood-analysis-service
-          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "cd /opt/metachat-services/mood-analysis-service && docker build -t metachat/mood-analysis-service:latest . && docker service update --image metachat/mood-analysis-service:latest metachat-services_mood-analysis-service || docker service create --name metachat-services_mood-analysis-service --network metachat_overlay metachat/mood-analysis-service:latest"
-
-
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "cd /opt/metachat-services/mood-analysis-service && docker build -t metachat/mood-analysis-service:latest . && docker service update --image metachat/mood-analysis-service:latest --env-add CASSANDRA_HOSTS=$INFRA_CASSANDRA --env-add KAFKA_BOOTSTRAP_SERVERS=$INFRA_KAFKA --env-add CASSANDRA_KEYSPACE=metachat --env-add SERVER_PORT=8000 --env-add GRPC_PORT=50056 --publish-add 8000:8000 --publish-add 50056:50056 metachat-services_mood-analysis-service || docker service create --name metachat-services_mood-analysis-service --network metachat_overlay -e KAFKA_BOOTSTRAP_SERVERS=$INFRA_KAFKA -e CASSANDRA_HOSTS=$INFRA_CASSANDRA -e CASSANDRA_KEYSPACE=metachat -e SERVER_PORT=8000 -e GRPC_PORT=50056 -p 8000:8000 -p 50056:50056 metachat/mood-analysis-service:latest"

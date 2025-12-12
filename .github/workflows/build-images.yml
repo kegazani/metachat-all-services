@@ -1,0 +1,112 @@
+name: Build All Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_to_registry:
+        description: 'Push to registry'
+        required: true
+        default: true
+        type: boolean
+      registry_type:
+        description: 'Registry type'
+        required: true
+        default: 'ghcr'
+        type: choice
+        options:
+          - ghcr
+          - private
+          - both
+
+jobs:
+  build-all:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api-gateway
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-api-gateway/Dockerfile
+          - service: user-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-user-service/Dockerfile
+          - service: diary-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-diary-service/Dockerfile
+          - service: matching-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-matching-service/Dockerfile
+          - service: match-request-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-match-request-service/Dockerfile
+          - service: chat-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-chat-service/Dockerfile
+          - service: mood-analysis-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-mood-analysis-service/Dockerfile
+          - service: analytics-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-analytics-service/Dockerfile
+          - service: archetype-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-archetype-service/Dockerfile
+          - service: biometric-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-biometric-service/Dockerfile
+          - service: correlation-service
+            context: metachat-all-services
+            dockerfile: metachat-all-services/metachat-correlation-service/Dockerfile
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: inputs.registry_type == 'ghcr' || inputs.registry_type == 'both'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Private Registry
+        if: (inputs.registry_type == 'private' || inputs.registry_type == 'both') && secrets.PRIVATE_REGISTRY_URL != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.PRIVATE_REGISTRY_URL }}
+          username: ${{ secrets.PRIVATE_REGISTRY_USER }}
+          password: ${{ secrets.PRIVATE_REGISTRY_PASSWORD }}
+
+      - name: Build and push to GHCR
+        if: inputs.push_to_registry && (inputs.registry_type == 'ghcr' || inputs.registry_type == 'both')
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.context }}
+          file: ./${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/metachat/${{ matrix.service }}:latest
+            ghcr.io/${{ github.repository_owner }}/metachat/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push to Private Registry
+        if: inputs.push_to_registry && (inputs.registry_type == 'private' || inputs.registry_type == 'both') && secrets.PRIVATE_REGISTRY_URL != ''
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.context }}
+          file: ./${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ secrets.PRIVATE_REGISTRY_URL }}/metachat/${{ matrix.service }}:latest
+            ${{ secrets.PRIVATE_REGISTRY_URL }}/metachat/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+

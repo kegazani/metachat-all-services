@@ -130,8 +130,34 @@ class ArchetypeClassifier:
             arousal
         )
         
-        dominant_archetype = max(scores, key=scores.get)
-        confidence = scores[dominant_archetype]
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        dominant_archetype = sorted_scores[0][0]
+        top_score = sorted_scores[0][1]
+        
+        if len(sorted_scores) > 1:
+            second_score = sorted_scores[1][1]
+            gap = top_score - second_score
+            avg_score = np.mean([s[1] for s in sorted_scores])
+            
+            gap_ratio = gap / max(top_score, 0.001) if top_score > 0 else 0.0
+            
+            base_multiplier = 2.0 + gap_ratio * 2.0
+            
+            confidence = min(1.0, top_score * base_multiplier + gap * 2.0)
+            
+            if gap_ratio > 0.5:
+                confidence = max(confidence, 0.4)
+            elif gap_ratio > 0.3:
+                confidence = max(confidence, 0.35)
+            elif gap_ratio > 0.15:
+                confidence = max(confidence, 0.3)
+            
+            if top_score > 0.12:
+                confidence = max(confidence, 0.3)
+            
+            confidence = min(1.0, confidence)
+        else:
+            confidence = top_score
         
         return dominant_archetype, scores, confidence
 

@@ -25,7 +25,9 @@ class KafkaProducer:
             'batch.num.messages': 1000,
             'queue.buffering.max.messages': 10000,
             'queue.buffering.max.kbytes': 10240,
-            'enable.idempotence': True
+            'enable.idempotence': True,
+            'socket.timeout.ms': 60000,
+            'metadata.request.timeout.ms': 60000
         }
         
         self.producer = None
@@ -151,6 +153,110 @@ class KafkaProducer:
         except Exception as e:
             logger.error("Error publishing ArchetypeUpdated event", error=str(e), exc_info=True)
     
+    def publish_personality_assigned(
+        self,
+        user_id: str,
+        big_five_scores: Dict[str, float],
+        dominant_trait: str,
+        confidence: float,
+        model_version: str,
+        tokens_analyzed: int,
+        correlation_id: Optional[str] = None
+    ):
+        if not self.producer:
+            logger.error("Kafka producer is not started")
+            return
+        
+        try:
+            event = {
+                "event_id": str(uuid.uuid4()),
+                "event_type": "PersonalityAssigned",
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "correlation_id": correlation_id or str(uuid.uuid4()),
+                "payload": {
+                    "user_id": user_id,
+                    "openness": big_five_scores["openness"],
+                    "conscientiousness": big_five_scores["conscientiousness"],
+                    "extraversion": big_five_scores["extraversion"],
+                    "agreeableness": big_five_scores["agreeableness"],
+                    "neuroticism": big_five_scores["neuroticism"],
+                    "dominant_trait": dominant_trait,
+                    "confidence": confidence,
+                    "model_version": model_version,
+                    "tokens_analyzed": tokens_analyzed,
+                    "calculated_at": datetime.utcnow().isoformat() + "Z"
+                }
+            }
+            
+            value = json.dumps(event).encode('utf-8')
+            key = user_id.encode('utf-8')
+            
+            self.producer.produce(
+                topic=self.config.personality_assigned_topic,
+                key=key,
+                value=value,
+                callback=self._delivery_callback
+            )
+            
+            self.producer.poll(0)
+            
+            logger.debug("Published PersonalityAssigned event", user_id=user_id, dominant_trait=dominant_trait)
+            
+        except Exception as e:
+            logger.error("Error publishing PersonalityAssigned event", error=str(e), exc_info=True)
+    
+    def publish_personality_updated(
+        self,
+        user_id: str,
+        big_five_scores: Dict[str, float],
+        dominant_trait: str,
+        confidence: float,
+        model_version: str,
+        tokens_analyzed: int,
+        correlation_id: Optional[str] = None
+    ):
+        if not self.producer:
+            logger.error("Kafka producer is not started")
+            return
+        
+        try:
+            event = {
+                "event_id": str(uuid.uuid4()),
+                "event_type": "PersonalityUpdated",
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "correlation_id": correlation_id or str(uuid.uuid4()),
+                "payload": {
+                    "user_id": user_id,
+                    "openness": big_five_scores["openness"],
+                    "conscientiousness": big_five_scores["conscientiousness"],
+                    "extraversion": big_five_scores["extraversion"],
+                    "agreeableness": big_five_scores["agreeableness"],
+                    "neuroticism": big_five_scores["neuroticism"],
+                    "dominant_trait": dominant_trait,
+                    "confidence": confidence,
+                    "model_version": model_version,
+                    "tokens_analyzed": tokens_analyzed,
+                    "calculated_at": datetime.utcnow().isoformat() + "Z"
+                }
+            }
+            
+            value = json.dumps(event).encode('utf-8')
+            key = user_id.encode('utf-8')
+            
+            self.producer.produce(
+                topic=self.config.personality_updated_topic,
+                key=key,
+                value=value,
+                callback=self._delivery_callback
+            )
+            
+            self.producer.poll(0)
+            
+            logger.debug("Published PersonalityUpdated event", user_id=user_id, dominant_trait=dominant_trait)
+            
+        except Exception as e:
+            logger.error("Error publishing PersonalityUpdated event", error=str(e), exc_info=True)
+    
     def _delivery_callback(self, err, msg):
         if err is not None:
             logger.error("Message delivery failed", error=str(err))
@@ -172,7 +278,9 @@ class KafkaConsumer:
             'bootstrap.servers': ','.join(config.kafka_brokers),
             'group.id': config.kafka_consumer_group,
             'auto.offset.reset': 'earliest',
-            'enable.auto.commit': False
+            'enable.auto.commit': False,
+            'socket.timeout.ms': 60000,
+            'metadata.request.timeout.ms': 60000
         }
         
         self.consumer = None

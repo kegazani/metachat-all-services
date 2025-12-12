@@ -1,0 +1,59 @@
+service:
+  name: "mood-analysis-service"
+  log_level: "INFO"
+  
+server:
+  grpc_port: 50051
+  http_port: 8000
+  http_host: "0.0.0.0"
+
+database:
+  url: "postgresql+asyncpg://metachat:metachat_password@127.0.0.1:5432/metachat_mood"
+  pool_size: 10
+  max_overflow: 20
+
+kafka:
+  brokers:
+    - "127.0.0.1:9092"
+  consumer_group: "mood-analysis-service"
+  topics:
+    diary_entry_created: "metachat.diary.entry.created"
+    diary_entry_updated: "metachat.diary.entry.updated"
+    mood_analyzed: "metachat.mood.analyzed"
+    mood_analysis_failed: "metachat.mood.analysis.failed"
+
+model:
+  name: "blanchefort/rubert-base-cased-sentiment"
+  cache_dir: "/app/models"
+  version: "rubert-emotion-v1"
+
+plutchik:
+  emotions:
+    - "joy"
+    - "trust"
+    - "fear"
+    - "surprise"
+    - "sadness"
+    - "disgust"
+    - "anger"
+    - "anticipation"
+
+topics:
+  dictionary:
+    - "работа"
+    - "отношения"
+    - "здоровье"
+    - "семья"
+    - "друзья"
+    - "финансы"
+    - "хобби"
+    - "стресс"
+    - "учеба"
+    - "путешествия"
+
+retry:
+  max_attempts: 3
+  initial_delay: 1.0
+  max_delay: 60.0
+  exponential_base: 2.0
+

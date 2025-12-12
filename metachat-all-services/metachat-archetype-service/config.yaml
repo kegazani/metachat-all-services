@@ -1,0 +1,33 @@
+service:
+  name: "personality-service"
+  log_level: "INFO"
+  
+server:
+  http_port: 8001
+  http_host: "0.0.0.0"
+  grpc_port: 50056
+
+database:
+  url: "postgresql+asyncpg://metachat:metachat_password@127.0.0.1:5432/metachat_personality"
+  pool_size: 10
+  max_overflow: 20
+
+kafka:
+  brokers:
+    - "127.0.0.1:9092"
+  consumer_group: "personality-service"
+  topics:
+    mood_analyzed: "metachat.mood.analyzed"
+    diary_entry_created: "metachat.diary.entry.created"
+    personality_assigned: "metachat.personality.assigned"
+    personality_updated: "metachat.personality.updated"
+    personality_calculation_triggered: "metachat.personality.calculation.triggered"
+
+personality:
+  thresholds:
+    initial_tokens: 50
+    recalculation_tokens: 100
+    min_confidence: 0.3
+    recalculation_interval_days: 7
+  model_version: "big-five-v1"
+

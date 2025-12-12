@@ -1,187 +1,784 @@
-# Архитектура MetaChat
+# MetaChat - Архитектура системы и взаимодействие сервисов
 
-## Обзор системы
+## 🏗️ Общая архитектура
 
-MetaChat - это платформа для ведения дневника с анализом эмоционального состояния и рекомендациями на основе схожести пользователей. Система построена на микросервисной архитектуре с использованием event sourcing для обеспечения отказоустойчивости и масштабируемости.
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    КЛИЕНТ                                                │
+│                              (Flutter Mobile App)                                        │
+└─────────────────────────────────────┬───────────────────────────────────────────────────┘
+                                      │ HTTP REST
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              API GATEWAY (Go)                                            │
+│                              Port: 8080                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐    │
+│  │ /auth/*        │ /users/*       │ /diary/*         │ /matching/*               │    │
+│  │ Register       │ GetUser        │ CreateEntry      │ FindMatches               │    │
+│  │ Login          │ UpdateProfile  │ GetEntry         │ GetRecommendations        │    │
+│  │ OAuth          │ Personality    │ UpdateEntry      │ CalculateSimilarity       │    │
+│  │                │ Modalities     │ DeleteEntry      │                           │    │
+│  │                │                │ Sessions         │                           │    │
+│  └─────────────────────────────────────────────────────────────────────────────────┘    │
+└───────────┬─────────────────┬─────────────────┬─────────────────┬───────────────────────┘
+            │ gRPC            │ gRPC            │ gRPC            │ gRPC
+            ▼                 ▼                 ▼                 ▼
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│   USER SERVICE   │ │  DIARY SERVICE   │ │ MATCHING SERVICE │ │MATCH REQUEST SVC │
+│      (Go)        │ │      (Go)        │ │      (Go)        │ │      (Go)        │
+│   Port: 50051    │ │   Port: 50052    │ │   Port: 50053    │ │   Port: 50054    │
+└────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
+         │                    │                    │                    │
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│   CHAT SERVICE   │ │ARCHETYPE SERVICE │ │ ANALYTICS SERVICE│ │ MOOD ANALYSIS    │
+│      (Go)        │ │    (Python)      │ │    (Python)      │ │    (Python)      │
+│   Port: 50055    │ │   Port: 50056    │ │   Port: 50057    │ │   Port: 8000     │
+└────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
+         │                    │                    │                    │
+         │    ┌───────────────┴────────────────────┴────────────────────┘
+         │    │
+         ▼    ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    KAFKA                                                 │
+│                              (Message Broker)                                            │
+│  ┌─────────────────────────────────────────────────────────────────────────────────┐    │
+│  │ metachat-user-events      │ metachat.diary.entry.created                        │    │
+│  │ metachat.mood.analyzed    │ metachat.diary.entry.updated                        │    │
+│  │ metachat.personality.*    │ metachat.diary.entry.deleted                        │    │
+│  │ metachat.biometric.*      │ metachat.correlation.discovered                     │    │
+│  └─────────────────────────────────────────────────────────────────────────────────┘    │
+└────────────┬─────────────────┬─────────────────┬─────────────────┬───────────────────────┘
+             │                 │                 │                 │
+             ▼                 ▼                 ▼                 ▼
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│  MOOD ANALYSIS   │ │ PERSONALITY SVC │ │ BIOMETRIC SERVICE│ │CORRELATION SERVICE│
+│    (Python)      │ │    (Python)      │ │    (Python)      │ │    (Python)       │
+│   Port: 8081     │ │   Port: 8082     │ │   Port: 8084     │ │   Port: 8085      │
+│  ╔════════════╗  │ │  ╔════════════╗  │ │                  │ │                   │
+│  ║  AI/ML     ║  │ │  ║  AI/ML     ║  │ │                  │ │                   │
+│  ║ Transformer║  │ │  ║ Big Five  ║  │ │                  │ │                   │
+│  ╚════════════╝  │ │  ╚════════════╝  │ │                  │ │                   │
+└──────────────────┘ └──────────────────┘ └──────────────────┘ └──────────────────┘
+```
 
-## Архитектурные компоненты
+```
+                              KAFKA TOPICS MAP
+                                     
+┌─────────────────┐                                      ┌─────────────────┐
+│  USER SERVICE   │──► metachat-user-events ────────────►│   (consumers)   │
+│     (Go)        │                                      │    optional     │
+└─────────────────┘                                      └─────────────────┘
+                                                                           
+┌─────────────────┐    metachat.diary.entry.created     ┌─────────────────┐
+│  DIARY SERVICE  │──► metachat.diary.entry.updated ───►│ MOOD ANALYSIS   │
+│     (Go)        │    metachat.diary.entry.deleted     │   (Python)      │
+└─────────────────┘              │                      └────────┬────────┘
+                                 │                               │
+                                 ▼                               ▼
+                         ┌───────────────┐           metachat.mood.analyzed
+                         │  ANALYTICS    │◄──────────────────────┤
+                         │   (Python)    │                       │
+                         └───────┬───────┘                       ▼
+                                 │                      ┌─────────────────┐
+               metachat.personality.updated            │ PERSONALITY SVC │
+                                 ▲                      │   (Python)      │
+                                 │                      └────────┬────────┘
+                                 └──────────────────────────────┤
+                                                                ▼
+                                        metachat.personality.assigned
+                                        metachat.personality.updated
+                                        metachat.personality.calculation.triggered
+                                                                           
+┌─────────────────┐    metachat.biometric.data.received ┌─────────────────┐
+│ BIOMETRIC SVC   │────────────────────────────────────►│ CORRELATION SVC │
+│   (Python)      │                                     │   (Python)      │
+└─────────────────┘                                     └────────┬────────┘
+                                                                 │
+                        metachat.mood.analyzed ──────────────────┘
+                                                                 ▼
+                                             metachat.correlation.discovered
+```
 
-### 1. API Gateway
-- **Технология**: Kong/Traefik
-- **Назначение**: Единая точка входа для всех клиентских запросов, маршрутизация к соответствующим микросервисам, аутентификация и авторизация
+## Детализация по сервисам
 
-### 2. Микросервисы
+### 1. User Service (Producer)
 
-#### 2.1. User Service
-- **Язык**: Go
-- **Назначение**: Управление пользователями, их профилями и портретами
-- **Основные функции**:
-  - Регистрация и аутентификация пользователей
-  - Управление профилем пользователя
-  - Хранение и обновление портрета пользователя
-- **База данных**: EventStoreDB (event sourcing), Cassandra (read models)
+**Топик:** `metachat-user-events`
 
-#### 2.2. Diary Service
-- **Язык**: Go
-- **Назначение**: Управление записями дневника пользователей
-- **Основные функции**:
-  - CRUD операции с записями дневника
-  - Поиск и фильтрация записей
-- **База данных**: EventStoreDB (event sourcing), Cassandra (read models)
+| Событие | Описание | Payload |
 
-#### 2.3. Mood Analysis Service
-- **Язык**: Python
-- **Назначение**: Анализ эмоционального состояния на основе записей дневника
-- **Основные функции**:
-  - Анализ текста на предмет эмоциональной окраски с использованием предобученной модели RuBERT
-  - Агрегация данных по временным промежуткам (день/неделя/месяц)
-  - Обновление портрета пользователя на основе анализа
-- **База данных**: EventStoreDB (чтение событий), Kafka (публикация результатов анализа)
+|---------|----------|---------|
 
-#### 2.4. Matching Service
-- **Язык**: Go
-- **Назначение**: Поиск похожих пользователей и формирование рекомендаций
-- **Основные функции**:
-  - Расчет схожести пользователей на основе их портретов
-  - Поиск пользователей с похожими интересами и эмоциональными профилями
-  - Формирование рекомендаций контента
-- **База данных**: Cassandra (хранение портретов пользователей и результатов мэтчинга)
+| `UserRegistered` | Новый пользователь | user_id, username, email, first_name, last_name |
 
-### 3. Базы данных
+| `UserProfileUpdated` | Обновление профиля | user_id, updated_fields |
 
-#### 3.1. EventStoreDB
-- **Назначение**: Хранение событий системы в хронологическом порядке (event sourcing)
-- **Преимущества**: 
-  - Полная история изменений состояния системы
-  - Возможность воспроизведения событий для восстановления состояния
-  - Отказоустойчивость и масштабируемость
+| `UserPersonalityAssigned` | Личность определена | user_id, openness, conscientiousness, extraversion, agreeableness, neuroticism, dominant_trait, confidence |
 
-#### 3.2. Cassandra
-- **Назначение**: Хранение read-моделей для быстрого доступа к данным
-- **Преимущества**:
-  - Высокая производительность чтения
-  - Горизонтальная масштабируемость
-  - Поддержка репликации для отказоустойчивости
+| `UserPersonalityUpdated` | Личность обновлена | user_id, openness, conscientiousness, extraversion, agreeableness, neuroticism, dominant_trait, confidence |
 
-### 4. Message Broker
+| `UserModalitiesUpdated` | Модальности обновлены | user_id, modalities |
 
-#### 4.1. Apache Kafka
-- **Назначение**: Асинхронная коммуникация между микросервисами
-- **Преимущества**:
-  - Гарантированная доставка сообщений
-  - Высокая пропускная способность
-  - Масштабируемость
-  - Сохранение порядка сообщений в рамках раздела
+### 2. Diary Service (Producer)
 
-### 5. Мобильное приложение
+**Топики:**
 
-#### 5.1. iOS приложение (Swift)
-- **Назначение**: Клиентское приложение для взаимодействия с системой
-- **Основные функции**:
-  - Создание и просмотр записей дневника
-  - Просмотр анализа эмоционального состояния
-  - Просмотр портрета пользователя
-  - Получение рекомендаций (пользователи и контент)
+| Топик | Событие | Payload |
 
-## Потоки данных
+|-------|---------|---------|
 
-### 1. Регистрация пользователя
-1. Пользователь регистрируется через мобильное приложение
-2. Запрос поступает через API Gateway в User Service
-3. User Service создает событие UserRegistered в EventStoreDB
-4. User Service создает read-модель пользователя в Cassandra
+| `metachat.diary.entry.created` | Запись создана | diary_id, user_id, title, content, token_count, tags, created_at |
 
-### 2. Создание записи в дневнике
-1. Пользователь создает запись через мобильное приложение
-2. Запрос поступает через API Gateway в Diary Service
-3. Diary Service создает событие DiaryEntryCreated в EventStoreDB
-4. Diary Service создает read-модель записи в Cassandra
-5. Diary Service публикует событие DiaryEntryCreated в Kafka
+| `metachat.diary.entry.updated` | Запись обновлена | diary_id, user_id, title, content, token_count, tags, updated_at |
 
-### 3. Анализ настроения
-1. Mood Analysis Service подписан на события DiaryEntryCreated/Updated в Kafka
-2. При получении события, сервис анализирует текст записи с помощью RuBERT
-3. Результаты анализа агрегируются по временным промежуткам
-4. На основе анализа обновляется портрет пользователя
-5. Mood Analysis Service публикует событие MoodAnalyzed в Kafka
+| `metachat.diary.entry.deleted` | Запись удалена | diary_id, user_id, reason, deleted_at |
 
-### 4. Обновление портрета пользователя
-1. User Service подписан на события MoodAnalyzed в Kafka
-2. При получении события, сервис обновляет портрет пользователя в Cassandra
-3. User Service создает событие UserPortraitUpdated в EventStoreDB
+| `diary-events` | Все события дневника | event_type, payload |
 
-### 5. Поиск похожих пользователей
-1. Пользователь запрашивает рекомендации через мобильное приложение
-2. Запрос поступает через API Gateway в Matching Service
-3. Matching Service получает портрет текущего пользователя из Cassandra
-4. Сервис сравнивает портрет с другими пользователями, используя алгоритмы схожести
-5. Результаты (похожие пользователи) возвращаются в мобильное приложение
+| `session-events` | События сессий | session_id, user_id, action |
 
-### 6. Рекомендации контента
-1. Matching Service анализирует интересы пользователя и его портрет
-2. На основе анализа формируются рекомендации контента
-3. Рекомендации возвращаются в мобильное приложение
+### 3. Mood Analysis Service (Consumer/Producer)
 
-## Безопасность
+**Подписки:**
 
-### 1. Аутентификация и авторизация
-- JWT токены для аутентификации пользователей
-- Ролевая модель доступа к ресурсам
-- Проверка прав доступа на уровне API Gateway
+- `metachat.diary.entry.created`
+- `metachat.diary.entry.updated`
 
-### 2. Защита данных
-- Шифрование данных при передаче (TLS/SSL)
-- Хранение паролей в захешированном виде
-- Регулярное резервное копирование данных
+**Публикует:**
 
-## Масштабируемость
+| Топик | Событие | Payload |
 
-### 1. Горизонтальное масштабирование
-- Каждый микросервис может масштабироваться независимо
-- Использование контейнеризации (Docker) и оркестрации (Kubernetes)
-- Автоматическое масштабирование на основе нагрузки
+|-------|---------|---------|
 
-### 2. Балансировка нагрузки
-- Распределение запросов между экземплярами сервисов
-- Использование health check для мониторинга состояния сервисов
+| `metachat.mood.analyzed` | Анализ завершен | user_id, diary_id, emotion_vector[8], dominant_emotion, valence, arousal, confidence, topics, keywords |
 
-## Отказоустойчивость
+| `metachat.mood.analysis.failed` | Ошибка анализа | user_id, diary_id, error, timestamp |
 
-### 1. Резервирование
-- Репликация данных в Cassandra
-- Резервирование EventStoreDB
-- Использование нескольких брокеров Kafka
+### 4. Personality Service (Big Five) (Consumer/Producer)
 
-### 2. Обработка сбоев
-- Повторные попытки при временных сбоях
-- Circuit Breaker pattern для предотвращения каскадных сбоев
-- Очереди для обработки пиковых нагрузок
+**Подписки:**
 
-## Мониторинг и логирование
+- `metachat.mood.analyzed`
+- `metachat.diary.entry.created`
 
-### 1. Сбор метрик
-- Сбор метрик производительности сервисов
-- Мониторинг состояния баз данных
-- Отслеживание бизнес-метрик
+**Публикует:**
 
-### 2. Централизованное логирование
-- Сбор логов со всех сервисов в единую систему
-- Анализ логов для выявления проблем
-- Оповещения о критических событиях
+| Топик | Событие | Payload |
 
-## Будущие улучшения
+|-------|---------|---------|
 
-### 1. Расширение функционала
-- Добавление групповых чатов
-- Интеграция с другими социальными сетями
-- Расширенные аналитические дашборды
+| `metachat.personality.assigned` | Личность определена | user_id, openness, conscientiousness, extraversion, agreeableness, neuroticism, dominant_trait, confidence, model_version, tokens_analyzed |
 
-### 2. Оптимизация производительности
-- Внедрение кэширования на различных уровнях
-- Оптимизация алгоритмов мэтчинга
-- Улучшение производительности базы данных
+| `metachat.personality.updated` | Личность обновлена | user_id, openness, conscientiousness, extraversion, agreeableness, neuroticism, dominant_trait, confidence, model_version, tokens_analyzed |
 
-### 3. Улучшение безопасности
-- Внедрение многофакторной аутентификации
-- Улучшение защиты персональных данных
-- Регулярные аудиты безопасности
+| `metachat.personality.calculation.triggered` | Запущен пересчет | user_id, trigger_reason, tokens_count |
+
+### 5. Analytics Service (Consumer only)
+
+**Подписки:**
+
+- `metachat.mood.analyzed`
+- `metachat.diary.entry.created`
+- `metachat.diary.entry.deleted`
+- `metachat.personality.updated`
+
+### 6. Biometric Service (Producer)
+
+**API Endpoints:**
+- `POST /biometric/data` - Прием биометрических данных от устройств
+- `POST /biometric/watch/data` - **NEW** Прием расширенных данных с умных часов
+- `GET /biometric/data/{user_id}` - Получение биометрических данных пользователя
+- `GET /biometric/profile/{user_id}` - **NEW** Биометрический профиль пользователя
+- `GET /biometric/summary/{user_id}` - **NEW** Сводка за период
+- `GET /biometric/summary/{user_id}/today` - **NEW** Сводка за сегодня
+- `GET /biometric/emotional-state/{user_id}/current` - **NEW** Текущее эмоциональное состояние
+- `GET /biometric/emotional-state/{user_id}/day/{date}` - **NEW** Эмоциональный анализ дня
+- `GET /biometric/insights/{user_id}/day/{date}` - **NEW** Инсайты дня (активность, локации, события)
+- `GET /biometric/spikes/{user_id}` - **NEW** Эмоциональные всплески
+- `WS /biometric/ws/{user_id}` - **NEW** WebSocket для real-time данных с часов
+
+**Публикует:**
+
+| Топик | Событие | Payload |
+
+|-------|---------|---------|
+
+| `metachat.biometric.data.received` | Биометрия получена | user_id, heart_rate, sleep_data, activity, device_id, timestamp |
+| `metachat.watch.data.received` | **NEW** Данные с часов | user_id, heart_rate, hrv, spo2, stress, steps, calories, device_type |
+| `metachat.user.health.updated` | **NEW** Здоровье обновлено | user_id, health_score, metrics summary |
+| `metachat.emotional.state.analyzed` | **NEW** Эмоции проанализированы | user_id, date, overall_state, stability, insights |
+| `metachat.day.insights.generated` | **NEW** Инсайты сгенерированы | user_id, date, story, key_moments |
+
+**Реализация:**
+- Сохранение биометрических данных в PostgreSQL
+- Публикация событий в Kafka при получении данных
+- Поддержка heart_rate, hrv, blood_oxygen, stress_level, sleep, activity метрик
+- **NEW** WebSocket для real-time синхронизации данных с умных часов
+- **NEW** Анализ эмоционального состояния на основе биометрии
+- **NEW** Определение всплесков эмоций и ключевых моментов дня
+- **NEW** Генерация инсайтов и рекомендаций
+- **NEW** Анализ паттернов активности и местоположения
+
+### 7. Correlation Service (Consumer/Producer)
+
+**Подписки:**
+
+- `metachat.mood.analyzed`
+- `metachat.biometric.data.received`
+
+**Публикует:**
+
+| Топик | Событие | Payload |
+
+|-------|---------|---------|
+
+| `metachat.correlation.discovered` | Корреляция найдена | user_id, correlation_type, mood_data, biometric_data, correlation_score, timestamp |
+
+**Типы корреляций:**
+- `heart_rate_valence` - Корреляция между пульсом и валентностью настроения
+- `sleep_arousal` - Корреляция между сном и уровнем возбуждения
+- `activity_valence` - Корреляция между активностью и валентностью
+
+**Реализация:**
+- Кэширование данных настроения и биометрии для каждого пользователя
+- Статистический анализ корреляций (Pearson correlation)
+- Минимальные требования: 14 дней данных, 10+ записей
+- Автоматическое обнаружение значимых корреляций (p-value < 0.05, |r| > 0.3)
+
+## Потоки событий (Event Flows)
+
+### Flow 1: Создание записи в дневнике
+
+```
+User → API Gateway → Diary Service
+                          │
+                          ▼ metachat.diary.entry.created
+                          │
+        ┌─────────────────┼─────────────────┐
+        ▼                 ▼                 ▼
+   Mood Analysis    Personality Svc  Analytics Svc
+        │                                   │
+        ▼ metachat.mood.analyzed            │
+        │                                   │
+        ├────────────────►─────────────────►┘
+        ▼
+   Personality Svc
+        │
+        ▼ metachat.personality.updated
+        │
+        └──────────────────────────────────►Analytics Svc
+```
+
+### Flow 2: Обработка биометрии и корреляций
+
+```
+Device → Biometric Service
+              │
+              ▼ metachat.biometric.data.received
+              │
+              └────────────────►Correlation Service
+                                      │
+                                      │ (кэширует данные)
+                                      │
+                      (waits for)     │
+              metachat.mood.analyzed──┘
+                                      │
+                                      │ (анализ при достаточном количестве данных)
+                                      │
+                                      ▼ metachat.correlation.discovered
+                                      │
+                                      └────────────────►Analytics Service (опционально)
+```
+
+### Flow 3: Real-time данные с умных часов и эмоциональный анализ
+
+```
+Smart Watch → Flutter App → WebSocket → Biometric Service
+                                              │
+                                              ├─► PostgreSQL (сохранение данных)
+                                              │
+                                              ├─► metachat.watch.data.received ───► Correlation Service
+                                              │
+                                              ├─► Emotional State Analyzer
+                                              │         │
+                                              │         ├─► Определение текущего состояния
+                                              │         │     (calm, stressed, energized, etc.)
+                                              │         │
+                                              │         ├─► Обнаружение эмоциональных всплесков
+                                              │         │     (резкие изменения HR, стресса)
+                                              │         │
+                                              │         └─► Анализ паттернов дня
+                                              │               │
+                                              │               ▼
+                                              │         metachat.emotional.state.analyzed
+                                              │
+                                              └─► Day Insights Analyzer
+                                                        │
+                                                        ├─► Контекст местоположения
+                                                        │     (дом, работа, транспорт)
+                                                        │
+                                                        ├─► Анализ активности
+                                                        │     (работа, тренировка, отдых)
+                                                        │
+                                                        ├─► Ключевые моменты дня
+                                                        │
+                                                        └─► Генерация "истории дня"
+                                                              │
+                                                              ▼
+                                                        metachat.day.insights.generated
+
+```
+
+**Типы эмоциональных состояний:**
+- `calm` - Спокойствие (низкий HR, высокий HRV, низкий стресс)
+- `relaxed` - Расслабленность
+- `energized` - Энергичность (повышенная активность)
+- `focused` - Сосредоточенность
+- `stressed` - Напряжение (высокий HR, низкий HRV, высокий стресс)
+- `anxious` - Тревожность
+- `tired` - Усталость (низкая энергия, плохой сон)
+- `excited` - Возбуждение
+
+**Анализ всплесков:**
+- Обнаружение резких изменений HR (>20% за 15 мин)
+- Обнаружение скачков стресса
+- Контекст всплеска (местоположение, активность)
+
+---
+
+## 📡 API Endpoints (Ручки)
+
+### 🔐 Auth Routes (`/auth/*`) → User Service
+
+| Method | Endpoint | Описание |
+|--------|----------|----------|
+| POST | `/auth/register` | Регистрация нового пользователя |
+| POST | `/auth/login` | Авторизация пользователя |
+| POST | `/auth/oauth/{provider}` | OAuth авторизация (Google/Apple) |
+
+### 👤 User Routes (`/users/*`) → User Service
+
+| Method | Endpoint | Описание |
+|--------|----------|----------|
+| GET | `/users/{id}` | Получить профиль пользователя |
+| PUT | `/users/{id}` | Обновить профиль пользователя |
+| GET | `/users` | Список пользователей |
+| POST | `/users/{id}/personality` | Определить личность пользователя (Big Five) |
+| PUT | `/users/{id}/personality` | Обновить личность пользователя (Big Five) |
+| PUT | `/users/{id}/modalities` | Обновить модальности пользователя |
+| GET | `/users/{id}/profile-progress` | **NEW** Прогресс расчета личности |
+| GET | `/users/{id}/statistics` | **NEW** Статистика пользователя |
+
+### 💑 Matching Routes (`/matching/*`) → Matching Service
+
+| Method | Endpoint | Описание |
+|--------|----------|----------|
+| GET | `/users/{id1}/common-topics/{id2}` | **NEW** Общие темы между пользователями |
+
+### 💌 Match Request Routes (`/match-requests/*`) → Match Request Service
+
+| Method | Endpoint | Описание |
+|--------|----------|----------|
+| POST | `/match-requests` | **NEW** Создать запрос на общение |
+| GET | `/match-requests/user/{user_id}` | **NEW** Получить запросы пользователя |
+| PUT | `/match-requests/{request_id}/accept` | **NEW** Принять запрос |
+| PUT | `/match-requests/{request_id}/reject` | **NEW** Отклонить запрос |
+| GET | `/match-requests/{request_id}` | **NEW** Получить запрос по ID |
+| DELETE | `/match-requests/{request_id}` | **NEW** Отменить запрос |
+
+### 💬 Chat Routes (`/chats/*`) → Chat Service
+
+| Method | Endpoint | Описание |
+|--------|----------|----------|
+| POST | `/chats` | **NEW** Создать чат |
+| GET | `/chats/{chat_id}` | **NEW** Получить чат |
+| GET | `/chats/user/{user_id}` | **NEW** Чаты пользователя |
+| POST | `/chats/{chat_id}/messages` | **NEW** Отправить сообщение |
+| GET | `/chats/{chat_id}/messages` | **NEW** История сообщений |
+| PUT | `/chats/{chat_id}/messages/read` | **NEW** Отметить как прочитанные |
+
+### 📔 Diary Routes (`/diary/*`) → Diary Service
+
+| Method | Endpoint | Описание |
+|--------|----------|----------|
+| POST | `/diary/entries` | Создать запись в дневнике |
+| GET | `/diary/entries/{id}` | Получить запись |
+| PUT | `/diary/entries/{id}` | Обновить запись |
+| DELETE | `/diary/entries/{id}` | Удалить запись |
+| GET | `/diary/entries` | Список записей |
+| GET | `/diary/entries/user/{userId}` | Записи пользователя |
+| POST | `/diary/sessions` | Начать сессию |
+| GET | `/diary/sessions/{id}` | Получить сессию |
+| PUT | `/diary/sessions/{id}/end` | Завершить сессию |
+| GET | `/diary/sessions` | Список сессий |
+| GET | `/diary/sessions/user/{userId}` | Сессии пользователя |
+| GET | `/diary/analytics` | Аналитика дневника |
+
+---
+
+## 📨 Kafka Events (События)
+
+### Поток событий при создании записи в дневнике
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Client POST    │───▶│  Diary Service  │───▶│     Kafka       │───▶│  Mood Analysis  │
+│  /diary/entries │    │  Save Entry     │    │ diary.entry.    │    │  Service        │
+│                 │    │                 │    │ created         │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └────────┬────────┘
+                                                                              │
+                                                                     AI анализ текста
+                                                                     Plutchik Model
+                                                                              │
+                                                                              ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   User Profile  │◀───│ Personality     │◀───│     Kafka       │◀───│  Kafka Producer │
+│   Updated       │    │ Service         │    │ mood.analyzed   │    │  mood.analyzed  │
+│                 │    │ Big Five AI     │    │                 │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### Топики Kafka
+
+```yaml
+# User Service → Producer
+metachat-user-events:
+  - UserCreated
+  - UserProfileUpdated
+  - PersonalityAssigned
+  - PersonalityUpdated
+  - ModalitiesUpdated
+
+# Diary Service → Producer
+metachat.diary.entry.created:
+  - entry_id, user_id, content, token_count, tags
+  
+metachat.diary.entry.updated:
+  - entry_id, user_id, content, token_count, tags
+  
+metachat.diary.entry.deleted:
+  - entry_id, user_id, reason
+
+# Mood Analysis Service
+CONSUMES:
+  - metachat.diary.entry.created
+  - metachat.diary.entry.updated
+PRODUCES:
+  - metachat.mood.analyzed
+  - metachat.mood.analysis.failed
+
+# Personality Service (Big Five)
+CONSUMES:
+  - metachat.mood.analyzed
+  - metachat.diary.entry.created
+PRODUCES:
+  - metachat.personality.assigned
+  - metachat.personality.updated
+  - metachat.personality.calculation.triggered
+
+# Analytics Service
+CONSUMES:
+  - metachat.mood.analyzed
+  - metachat.diary.entry.created
+  - metachat.diary.entry.deleted
+  - metachat.personality.updated
+
+# Biometric Service → Producer
+metachat.biometric.data.received:
+  - user_id, heart_rate, sleep_data, activity
+
+# Correlation Service
+CONSUMES:
+  - metachat.mood.analyzed
+  - metachat.biometric.data.received
+PRODUCES:
+  - metachat.correlation.discovered
+```
+
+---
+
+## 🤖 AI/ML Компоненты
+
+### 1. Mood Analysis Service (Анализ настроения)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        MOOD ANALYSIS PIPELINE                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌────────────────┐     ┌──────────────────┐     ┌───────────────────┐    │
+│   │   Text Input   │────▶│   Preprocessing  │────▶│   Transformer     │    │
+│   │   (Diary)      │     │   - Clean text   │     │   Model           │    │
+│   │                │     │   - Remove URLs  │     │   (HuggingFace)   │    │
+│   └────────────────┘     │   - Tokenize     │     │                   │    │
+│                          └──────────────────┘     └─────────┬─────────┘    │
+│                                                             │               │
+│   ┌─────────────────────────────────────────────────────────┘               │
+│   ▼                                                                         │
+│   ┌──────────────────┐     ┌───────────────────┐     ┌─────────────────┐   │
+│   │ Sentiment Score  │────▶│  Plutchik Model   │────▶│ Emotion Vector  │   │
+│   │ positive/neutral │     │  8 базовых эмоций │     │ [8 float values]│   │
+│   │ /negative        │     │                   │     │                 │   │
+│   └──────────────────┘     └───────────────────┘     └────────┬────────┘   │
+│                                                               │             │
+│   ┌───────────────────────────────────────────────────────────┘             │
+│   ▼                                                                         │
+│   ┌──────────────────┐     ┌───────────────────┐                           │
+│   │ Topic Analyzer   │     │ Output:           │                           │
+│   │ - Keywords       │────▶│ - emotion_vector  │                           │
+│   │ - Topics         │     │ - valence/arousal │                           │
+│   │                  │     │ - topics/keywords │                           │
+│   └──────────────────┘     │ - confidence      │                           │
+│                            └───────────────────┘                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Plutchik Model - 8 базовых эмоций:
+
+```python
+EMOTIONS = [
+    "joy",          # Радость      (+valence, +arousal)
+    "trust",        # Доверие      (+valence, low arousal)
+    "fear",         # Страх        (-valence, high arousal)
+    "surprise",     # Удивление    (neutral, high arousal)
+    "sadness",      # Грусть       (-valence, low arousal)
+    "disgust",      # Отвращение   (-valence, -arousal)
+    "anger",        # Гнев         (-valence, high arousal)
+    "anticipation"  # Предвкушение (+valence, +arousal)
+]
+```
+
+### 2. Personality Service (Big Five / OCEAN)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    BIG FIVE PERSONALITY CLASSIFICATION                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌────────────────┐     ┌──────────────────┐                               │
+│   │ User History   │     │ Aggregated Data  │                               │
+│   │ - Entries      │────▶│ - Emotion avg    │                               │
+│   │ - Moods        │     │ - Topic distrib  │                               │
+│   │ - Tokens       │     │ - Style metrics  │                               │
+│   └────────────────┘     └────────┬─────────┘                               │
+│                                   │                                          │
+│   ┌───────────────────────────────┘                                          │
+│   ▼                                                                          │
+│   ┌──────────────────────────────────────────────────────────────────────┐  │
+│   │                    BIG FIVE CLASSIFIER                                 │  │
+│   │  ┌─────────────────────────────────────────────────────────────────┐ │  │
+│   │  │ Factor Calculation:                                              │ │  │
+│   │  │   - Openness: surprise, anticipation, creative topics            │ │  │
+│   │  │   - Conscientiousness: trust, work topics, entry length          │ │  │
+│   │  │   - Extraversion: joy, surprise, social topics, arousal          │ │  │
+│   │  │   - Agreeableness: trust, joy, social topics, -negative         │ │  │
+│   │  │   - Neuroticism: fear, sadness, anger, stress topics             │ │  │
+│   │  └─────────────────────────────────────────────────────────────────┘ │  │
+│   └──────────────────────────────────────────────────────────────────────┘  │
+│                                   │                                          │
+│   ┌───────────────────────────────┘                                          │
+│   ▼                                                                          │
+│   ┌──────────────────────────────────────────────────────────────────────┐  │
+│   │                    BIG FIVE (OCEAN) - 5 ФАКТОРОВ                      │  │
+│   │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐                │  │
+│   │  │  Openness    │ │Conscientious │ │ Extraversion │                │  │
+│   │  │  (O) 0.0-1.0 │ │  (C) 0.0-1.0 │ │  (E) 0.0-1.0 │                │  │
+│   │  └──────────────┘ └──────────────┘ └──────────────┘                │  │
+│   │  ┌──────────────┐ ┌──────────────┐                                   │  │
+│   │  │ Agreeableness│ │ Neuroticism │                                   │  │
+│   │  │  (A) 0.0-1.0 │ │  (N) 0.0-1.0 │                                   │  │
+│   │  └──────────────┘ └──────────────┘                                   │  │
+│   └──────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Big Five факторы:
+
+| Фактор | Описание | Индикаторы |
+|--------|----------|------------|
+| **Openness (O)** | Открытость опыту | surprise, anticipation, творческие темы, сложность текста |
+| **Conscientiousness (C)** | Добросовестность | trust, работа/учеба, длина записей, положительная валентность |
+| **Extraversion (E)** | Экстраверсия | joy, surprise, социальные темы, высокий arousal |
+| **Agreeableness (A)** | Доброжелательность | trust, joy, социальные темы, низкие отрицательные эмоции |
+| **Neuroticism (N)** | Нейротизм | fear, sadness, anger, стресс-темы, отрицательная валентность |
+
+---
+
+## 🔄 Триггеры пересчета личности (Big Five)
+
+```python
+TRIGGERS = {
+    "initial_threshold": 50,         # токенов для первого расчета
+    "recalculation_tokens": 100,    # токенов между пересчетами
+    "recalculation_days": 7,        # дней между пересчетами
+    "min_confidence": 0.3           # минимальная уверенность
+}
+```
+
+---
+
+## 📊 Matching Service (Подбор похожих пользователей)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         USER MATCHING                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌────────────────┐     ┌──────────────────┐     ┌───────────────────┐    │
+│   │  User A        │     │  User Portraits  │     │  Similarity       │    │
+│   │  - big_five    │────▶│  Comparison      │────▶│  Calculation      │    │
+│   │  - emotions    │     │                  │     │                   │    │
+│   │  - topics      │     │                  │     │ cosine_similarity │    │
+│   └────────────────┘     │  ┌────────────┐  │     │ + big_five_match  │    │
+│                          │  │  User B    │  │     │ + topic_overlap   │    │
+│                          │  │  portrait  │  │     │                   │    │
+│   ┌────────────────┐     │  └────────────┘  │     └─────────┬─────────┘    │
+│   │  All Users     │────▶│                  │               │              │
+│   │  (candidates)  │     └──────────────────┘               │              │
+│   └────────────────┘                                        │              │
+│                                                             ▼              │
+│                                              ┌───────────────────────────┐ │
+│                                              │ Sorted Matches            │ │
+│                                              │ [user_id, similarity]     │ │
+│                                              │ Top N recommendations     │ │
+│                                              └───────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🗄️ База данных
+
+### Event Store (PostgreSQL + Event Sourcing)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          EVENT STORE                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  events                                                                      │
+│  ├── id (UUID)                                                              │
+│  ├── aggregate_id (UUID)                                                    │
+│  ├── aggregate_type (user/diary)                                            │
+│  ├── event_type                                                             │
+│  ├── version                                                                │
+│  ├── payload (JSONB)                                                        │
+│  ├── metadata (JSONB) - correlation_id, causation_id                        │
+│  └── created_at                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Read Models (Cassandra)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          READ MODELS                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  users_by_id           │  diary_entries_by_id    │  mood_analyses           │
+│  ├── id               │  ├── id                 │  ├── entry_id             │
+│  ├── username         │  ├── user_id            │  ├── user_id              │
+│  ├── email            │  ├── title              │  ├── emotion_vector       │
+│  ├── big_five          │  ├── content            │  ├── dominant_emotion     │
+│  ├── modalities       │  ├── token_count        │  ├── valence              │
+│  └── updated_at       │  └── created_at         │  └── arousal              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔄 Полный цикл работы системы
+
+```
+                                    USER ACTION
+                                         │
+                                         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  1. Пользователь пишет запись в дневник                                     │
+│     POST /diary/entries { content: "Сегодня был отличный день..." }         │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  2. Diary Service сохраняет запись и публикует событие                      │
+│     → Kafka: metachat.diary.entry.created                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  3. Mood Analysis Service получает событие и анализирует текст              │
+│     - Transformer model определяет sentiment                                │
+│     - Plutchik model создает emotion vector                                 │
+│     - Topic analyzer извлекает темы и ключевые слова                        │
+│     → Kafka: metachat.mood.analyzed                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  4. Personality Service получает анализ настроения                         │
+│     - Агрегирует эмоции пользователя (70% старые + 30% новые)              │
+│     - Обновляет распределение тем                                           │
+│     - Проверяет триггеры (токены/время)                                     │
+│     - При достижении порога → пересчет Big Five                             │
+│     → Kafka: metachat.personality.assigned/updated                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  5. Analytics Service собирает статистику                                   │
+│     - Обновляет метрики пользователя                                        │
+│     - Агрегирует данные для дашбордов                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                                         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  6. Matching Service использует обновленный профиль                         │
+│     - User Portrait обновлен с новыми Big Five показателями                 │
+│     - Рекомендации похожих пользователей пересчитываются                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🛠️ Технологический стек
+
+| Компонент | Технология |
+|-----------|------------|
+| API Gateway | Go + gorilla/mux |
+| User Service | Go + gRPC + Event Sourcing |
+| Diary Service | Go + gRPC + Event Sourcing |
+| Matching Service | Go |
+| Mood Analysis | Python + FastAPI + Transformers |
+| Personality Service | Python + FastAPI + NumPy |
+| Analytics Service | Python + FastAPI |
+| Biometric Service | Python + FastAPI |
+| Correlation Service | Python + FastAPI + NumPy + SciPy |
+| Message Broker | Apache Kafka |
+| Event Store | PostgreSQL |
+| Read Store | Apache Cassandra |
+| Cache | Redis |
+| Client | Flutter/Dart |
+
+---
+
+## 📦 Docker порты
+
+| Service | Port | Type |
+|---------|------|------|
+| API Gateway | 8080 | HTTP |
+| User Service | 50051 | gRPC |
+| Diary Service | 50052 | gRPC |
+| Matching Service | 50053 | gRPC |
+| **Match Request Service** | **50054** | **gRPC** |
+| **Chat Service** | **50055** | **gRPC** |
+| **Archetype Service** | **50056** | **gRPC** |
+| **Analytics Service** | **50057** | **gRPC** |
+| Mood Analysis Service | 8000 | HTTP |
+| Archetype Service (HTTP) | 8001 | HTTP |
+| Analytics Service (HTTP) | 8002 | HTTP |
+| Biometric Service | 8084 | HTTP |
+| Correlation Service | 8085 | HTTP |
+| Kafka | 9092 | TCP |
+| Kafka UI | 8090 | HTTP |
+| PostgreSQL | 5432 | TCP |
+| Cassandra | 9042 | TCP |
+| Redis | 6379 | TCP |
+

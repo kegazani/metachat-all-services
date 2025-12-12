@@ -1,0 +1,1121 @@
+{
+	"info": {
+		"_postman_id": "metachat-api-collection",
+		"name": "MetaChat API",
+		"description": "Complete API collection for MetaChat application",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set(\"token\", jsonData.token);",
+									"        pm.collectionVariables.set(\"user_id\", jsonData.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set(\"token\", jsonData.token);",
+									"        pm.collectionVariables.set(\"user_id\", jsonData.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users/:id",
+							"host": ["{{base_url}}"],
+							"path": ["users", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users?page=1&limit=10&filter=",
+							"host": ["{{base_url}}"],
+							"path": ["users"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "filter",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"first_name\": \"John Updated\",\n  \"last_name\": \"Doe Updated\",\n  \"date_of_birth\": \"1990-01-01\",\n  \"avatar\": \"https://example.com/avatar.jpg\",\n  \"bio\": \"Updated bio\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/:id",
+							"host": ["{{base_url}}"],
+							"path": ["users", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Archetype",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"archetype_id\": \"archetype-1\",\n  \"archetype_name\": \"The Thinker\",\n  \"confidence\": 0.85,\n  \"description\": \"Analytical and introspective\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/:id/archetype",
+							"host": ["{{base_url}}"],
+							"path": ["users", ":id", "archetype"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Archetype",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"archetype_id\": \"archetype-1\",\n  \"archetype_name\": \"The Thinker\",\n  \"confidence\": 0.90,\n  \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/:id/archetype",
+							"host": ["{{base_url}}"],
+							"path": ["users", ":id", "archetype"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Modalities",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"modalities\": [\n    {\n      \"id\": \"modality-1\",\n      \"name\": \"Meditation\",\n      \"score\": 0.8,\n      \"description\": \"Regular meditation practice\"\n    },\n    {\n      \"id\": \"modality-2\",\n      \"name\": \"Therapy\",\n      \"score\": 0.6,\n      \"description\": \"Weekly therapy sessions\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/:id/modalities",
+							"host": ["{{base_url}}"],
+							"path": ["users", ":id", "modalities"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Profile Progress",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users/:id/profile-progress",
+							"host": ["{{base_url}}"],
+							"path": ["users", ":id", "profile-progress"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users/:id/statistics",
+							"host": ["{{base_url}}"],
+							"path": ["users", ":id", "statistics"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Diary",
+			"item": [
+				{
+					"name": "Entries",
+					"item": [
+						{
+							"name": "Create Diary Entry",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"title\": \"My Diary Entry\",\n  \"content\": \"Today was a great day. I learned a lot about myself.\",\n  \"token_count\": 25,\n  \"session_id\": \"session-id-here\",\n  \"tags\": [\"personal\", \"reflection\"]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/diary/entries",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "entries"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Diary Entry",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/diary/entries/:id",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "entries", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "entry-id-here"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Diary Entry",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Updated Entry Title\",\n  \"content\": \"Updated content here\",\n  \"token_count\": 30,\n  \"session_id\": \"session-id-here\",\n  \"tags\": [\"updated\", \"reflection\"]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/diary/entries/:id",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "entries", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "entry-id-here"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Diary Entry",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/diary/entries/:id",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "entries", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "entry-id-here"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "List Diary Entries",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/diary/entries?page=1&limit=10&filter=",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "entries"],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "10"
+										},
+										{
+											"key": "filter",
+											"value": ""
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Diary Entries By User",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/diary/entries/user/:userId?page=1&limit=10",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "entries", "user", ":userId"],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "10"
+										}
+									],
+									"variable": [
+										{
+											"key": "userId",
+											"value": "{{user_id}}"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Sessions",
+					"item": [
+						{
+							"name": "Start Diary Session",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"title\": \"Morning Reflection\",\n  \"description\": \"Daily morning reflection session\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/diary/sessions",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "sessions"]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Diary Session",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/diary/sessions/:id",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "sessions", ":id"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "session-id-here"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "End Diary Session",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/diary/sessions/:id/end",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "sessions", ":id", "end"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "session-id-here"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "List Diary Sessions",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/diary/sessions?page=1&limit=10&filter=",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "sessions"],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "10"
+										},
+										{
+											"key": "filter",
+											"value": ""
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Diary Sessions By User",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/diary/sessions/user/:userId?page=1&limit=10",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "sessions", "user", ":userId"],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "limit",
+											"value": "10"
+										}
+									],
+									"variable": [
+										{
+											"key": "userId",
+											"value": "{{user_id}}"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Analytics",
+					"item": [
+						{
+							"name": "Get Diary Analytics",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/diary/analytics",
+									"host": ["{{base_url}}"],
+									"path": ["diary", "analytics"]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Matching",
+			"item": [
+				{
+					"name": "Get Common Topics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users/:id1/common-topics/:id2",
+							"host": ["{{base_url}}"],
+							"path": ["users", ":id1", "common-topics", ":id2"],
+							"variable": [
+								{
+									"key": "id1",
+									"value": "{{user_id}}"
+								},
+								{
+									"key": "id2",
+									"value": "user-id-2"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Match Requests",
+			"item": [
+				{
+					"name": "Create Match Request",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"from_user_id\": \"{{user_id}}\",\n  \"to_user_id\": \"user-id-2\",\n  \"common_topics\": [\"topic1\", \"topic2\"],\n  \"similarity\": 0.85\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/match-requests",
+							"host": ["{{base_url}}"],
+							"path": ["match-requests"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Match Requests",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/match-requests/user/:user_id?status=",
+							"host": ["{{base_url}}"],
+							"path": ["match-requests", "user", ":user_id"],
+							"query": [
+								{
+									"key": "status",
+									"value": "",
+									"description": "Optional: pending, accepted, rejected, cancelled"
+								}
+							],
+							"variable": [
+								{
+									"key": "user_id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Match Request",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/match-requests/:request_id?user_id=",
+							"host": ["{{base_url}}"],
+							"path": ["match-requests", ":request_id"],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "{{user_id}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "request_id",
+									"value": "request-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accept Match Request",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/match-requests/:request_id/accept?user_id=",
+							"host": ["{{base_url}}"],
+							"path": ["match-requests", ":request_id", "accept"],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "{{user_id}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "request_id",
+									"value": "request-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Match Request",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/match-requests/:request_id/reject?user_id=",
+							"host": ["{{base_url}}"],
+							"path": ["match-requests", ":request_id", "reject"],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "{{user_id}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "request_id",
+									"value": "request-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Match Request",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/match-requests/:request_id?user_id=",
+							"host": ["{{base_url}}"],
+							"path": ["match-requests", ":request_id"],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "{{user_id}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "request_id",
+									"value": "request-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Chat",
+			"item": [
+				{
+					"name": "Create Chat",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_id1\": \"{{user_id}}\",\n  \"user_id2\": \"user-id-2\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/chats",
+							"host": ["{{base_url}}"],
+							"path": ["chats"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Chat",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/chats/:chat_id",
+							"host": ["{{base_url}}"],
+							"path": ["chats", ":chat_id"],
+							"variable": [
+								{
+									"key": "chat_id",
+									"value": "chat-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Chats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/chats/user/:user_id",
+							"host": ["{{base_url}}"],
+							"path": ["chats", "user", ":user_id"],
+							"variable": [
+								{
+									"key": "user_id",
+									"value": "{{user_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Send Message",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sender_id\": \"{{user_id}}\",\n  \"content\": \"Hello, how are you?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/chats/:chat_id/messages",
+							"host": ["{{base_url}}"],
+							"path": ["chats", ":chat_id", "messages"],
+							"variable": [
+								{
+									"key": "chat_id",
+									"value": "chat-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Chat Messages",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/chats/:chat_id/messages?limit=50&before_message_id=",
+							"host": ["{{base_url}}"],
+							"path": ["chats", ":chat_id", "messages"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "before_message_id",
+									"value": ""
+								}
+							],
+							"variable": [
+								{
+									"key": "chat_id",
+									"value": "chat-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Messages As Read",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/chats/:chat_id/messages/read?user_id=",
+							"host": ["{{base_url}}"],
+							"path": ["chats", ":chat_id", "messages", "read"],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "{{user_id}}"
+								}
+							],
+							"variable": [
+								{
+									"key": "chat_id",
+									"value": "chat-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
+

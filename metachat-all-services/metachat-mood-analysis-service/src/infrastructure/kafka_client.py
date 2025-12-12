@@ -75,14 +75,15 @@ class KafkaProducer:
                 "payload": {
                     "entry_id": analysis_data["entry_id"],
                     "user_id": analysis_data["user_id"],
-                    "emotion_vector": analysis_data["emotion_vector"],
+                    "emotion_vector": [float(v) for v in analysis_data["emotion_vector"]],
                     "dominant_emotion": analysis_data["dominant_emotion"],
-                    "valence": analysis_data["valence"],
-                    "arousal": analysis_data["arousal"],
-                    "confidence": analysis_data["confidence"],
+                    "valence": float(analysis_data["valence"]),
+                    "arousal": float(analysis_data["arousal"]),
+                    "confidence": float(analysis_data["confidence"]),
                     "model_version": analysis_data["model_version"],
-                    "tokens_count": analysis_data["tokens_count"],
-                    "detected_topics": analysis_data.get("detected_topics", [])
+                    "tokens_count": int(analysis_data["tokens_count"]),
+                    "detected_topics": analysis_data.get("detected_topics", []),
+                    "keywords": analysis_data.get("keywords", [])
                 }
             }
             

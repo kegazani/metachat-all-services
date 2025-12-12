@@ -74,15 +74,44 @@ class MoodAnalyzer:
             
             emotion_vector = self.plutchik.map_sentiment_to_emotions(sentiment, sentiment_confidence)
             emotion_vector = self.plutchik.normalize_emotion_vector(emotion_vector)
+            emotion_vector = [float(v) for v in emotion_vector]
             
             dominant_emotion = self.plutchik.get_dominant_emotion(emotion_vector)
-            valence = self.plutchik.calculate_valence(emotion_vector)
-            arousal = self.plutchik.calculate_arousal(emotion_vector)
+            valence = float(self.plutchik.calculate_valence(emotion_vector))
+            arousal = float(self.plutchik.calculate_arousal(emotion_vector))
+            
+            logger.debug(
+                "Extracting topics and keywords",
+                entry_id=entry_id,
+                text_preview=text[:100] if text else "",
+                text_length=len(text) if text else 0
+            )
             
             detected_topics = self.topic_analyzer.extract_topics(text)
             keywords = self.topic_analyzer.extract_keywords(text)
             
-            overall_confidence = sentiment_confidence * 0.8 + (max(emotion_vector) * 0.2)
+            if detected_topics is None:
+                detected_topics = []
+            if keywords is None:
+                keywords = []
+            
+            if not isinstance(detected_topics, list):
+                detected_topics = []
+            if not isinstance(keywords, list):
+                keywords = []
+            
+            logger.debug(
+                "Topics and keywords extracted",
+                entry_id=entry_id,
+                detected_topics=detected_topics,
+                keywords=keywords,
+                topics_count=len(detected_topics),
+                keywords_count=len(keywords),
+                topics_type=type(detected_topics).__name__,
+                keywords_type=type(keywords).__name__
+            )
+            
+            overall_confidence = float(sentiment_confidence * 0.8 + (max(emotion_vector) * 0.2))
             
             result = {
                 "entry_id": entry_id,
@@ -93,7 +122,7 @@ class MoodAnalyzer:
                 "arousal": arousal,
                 "confidence": overall_confidence,
                 "model_version": self.model_version,
-                "tokens_count": tokens_count,
+                "tokens_count": int(tokens_count),
                 "detected_topics": detected_topics,
                 "keywords": keywords
             }
@@ -103,7 +132,10 @@ class MoodAnalyzer:
                 entry_id=entry_id,
                 user_id=user_id,
                 dominant_emotion=dominant_emotion,
-                confidence=overall_confidence
+                confidence=overall_confidence,
+                detected_topics=detected_topics,
+                keywords=keywords,
+                text_length=len(text) if text else 0
             )
             
             return result
@@ -117,4 +149,11 @@ class MoodAnalyzer:
                 exc_info=True
             )
             raise
+    
+    def analyze_text(self, text: str) -> Dict[str, float]:
+        sentiment, confidence = self.analyze_sentiment(text)
+        emotion_vector = self.plutchik.map_sentiment_to_emotions(sentiment, confidence)
+        emotion_vector = self.plutchik.normalize_emotion_vector(emotion_vector)
+        
+        return {emotion: float(score) for emotion, score in zip(self.plutchik.EMOTIONS, emotion_vector)}
 

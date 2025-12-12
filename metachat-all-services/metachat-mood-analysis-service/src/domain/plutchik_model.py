@@ -1,5 +1,4 @@
 from typing import Dict, List, Tuple
-import numpy as np
 
 
 class PlutchikModel:
@@ -33,18 +32,35 @@ class PlutchikModel:
     def map_sentiment_to_emotions(sentiment: str, confidence: float) -> List[float]:
         emotion_vector = [0.0] * 8
         
+        base_intensity = confidence
+        
         if sentiment == "positive":
-            emotion_vector[PlutchikModel.EMOTION_INDICES["joy"]] = confidence * 0.6
-            emotion_vector[PlutchikModel.EMOTION_INDICES["trust"]] = confidence * 0.4
-            emotion_vector[PlutchikModel.EMOTION_INDICES["anticipation"]] = confidence * 0.3
+            emotion_vector[PlutchikModel.EMOTION_INDICES["joy"]] = base_intensity * 0.7
+            emotion_vector[PlutchikModel.EMOTION_INDICES["trust"]] = base_intensity * 0.5
+            emotion_vector[PlutchikModel.EMOTION_INDICES["anticipation"]] = base_intensity * 0.4
+            emotion_vector[PlutchikModel.EMOTION_INDICES["surprise"]] = base_intensity * 0.2
+            emotion_vector[PlutchikModel.EMOTION_INDICES["sadness"]] = base_intensity * 0.05
+            emotion_vector[PlutchikModel.EMOTION_INDICES["anger"]] = base_intensity * 0.05
+            emotion_vector[PlutchikModel.EMOTION_INDICES["fear"]] = base_intensity * 0.05
+            emotion_vector[PlutchikModel.EMOTION_INDICES["disgust"]] = base_intensity * 0.05
         elif sentiment == "negative":
-            emotion_vector[PlutchikModel.EMOTION_INDICES["sadness"]] = confidence * 0.5
-            emotion_vector[PlutchikModel.EMOTION_INDICES["anger"]] = confidence * 0.4
-            emotion_vector[PlutchikModel.EMOTION_INDICES["fear"]] = confidence * 0.3
-            emotion_vector[PlutchikModel.EMOTION_INDICES["disgust"]] = confidence * 0.2
+            emotion_vector[PlutchikModel.EMOTION_INDICES["sadness"]] = base_intensity * 0.6
+            emotion_vector[PlutchikModel.EMOTION_INDICES["anger"]] = base_intensity * 0.5
+            emotion_vector[PlutchikModel.EMOTION_INDICES["fear"]] = base_intensity * 0.4
+            emotion_vector[PlutchikModel.EMOTION_INDICES["disgust"]] = base_intensity * 0.3
+            emotion_vector[PlutchikModel.EMOTION_INDICES["surprise"]] = base_intensity * 0.2
+            emotion_vector[PlutchikModel.EMOTION_INDICES["trust"]] = base_intensity * 0.1
+            emotion_vector[PlutchikModel.EMOTION_INDICES["joy"]] = base_intensity * 0.05
+            emotion_vector[PlutchikModel.EMOTION_INDICES["anticipation"]] = base_intensity * 0.05
         else:
-            emotion_vector[PlutchikModel.EMOTION_INDICES["surprise"]] = confidence * 0.3
-            emotion_vector[PlutchikModel.EMOTION_INDICES["trust"]] = confidence * 0.2
+            emotion_vector[PlutchikModel.EMOTION_INDICES["surprise"]] = base_intensity * 0.5
+            emotion_vector[PlutchikModel.EMOTION_INDICES["trust"]] = base_intensity * 0.4
+            emotion_vector[PlutchikModel.EMOTION_INDICES["anticipation"]] = base_intensity * 0.3
+            emotion_vector[PlutchikModel.EMOTION_INDICES["joy"]] = base_intensity * 0.2
+            emotion_vector[PlutchikModel.EMOTION_INDICES["sadness"]] = base_intensity * 0.15
+            emotion_vector[PlutchikModel.EMOTION_INDICES["fear"]] = base_intensity * 0.1
+            emotion_vector[PlutchikModel.EMOTION_INDICES["anger"]] = base_intensity * 0.1
+            emotion_vector[PlutchikModel.EMOTION_INDICES["disgust"]] = base_intensity * 0.1
         
         total = sum(emotion_vector)
         if total > 0:
@@ -70,7 +86,7 @@ class PlutchikModel:
     
     @staticmethod
     def get_dominant_emotion(emotion_vector: List[float]) -> str:
-        max_idx = np.argmax(emotion_vector)
+        max_idx = max(range(len(emotion_vector)), key=lambda i: emotion_vector[i])
         return PlutchikModel.EMOTIONS[max_idx]
     
     @staticmethod

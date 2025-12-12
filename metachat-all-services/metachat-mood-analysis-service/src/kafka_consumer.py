@@ -8,7 +8,7 @@ from confluent_kafka import Consumer, KafkaException, TopicPartition
 from loguru import logger
 
 from src.config import Config
-from src.mood_analyzer import MoodAnalyzer
+from src.domain.mood_analyzer import MoodAnalyzer
 from src.kafka_producer import KafkaProducer
 
 
@@ -18,7 +18,6 @@ class KafkaConsumer:
         self.mood_analyzer = mood_analyzer
         self.kafka_producer = kafka_producer
         
-        # Kafka consumer configuration
         self.consumer_config = {
             'bootstrap.servers': ','.join(config.kafka_brokers),
             'group.id': config.kafka_consumer_group,
@@ -26,19 +25,13 @@ class KafkaConsumer:
             'enable.auto.commit': False
         }
         
-        # Topics to subscribe to
         self.topics = [
             config.diary_entry_created_topic,
             config.diary_entry_updated_topic
         ]
         
-        # Consumer instance
         self.consumer = None
-        
-        # Running flag
         self.running = False
-        
-        # Thread for consuming messages
         self.consumer_thread = None
         
         logger.info("KafkaConsumer initialized")
@@ -146,25 +139,31 @@ class KafkaConsumer:
             logger.error(f"Error processing message: {e}")
 
     def _process_diary_entry_created(self, data: Dict[str, Any]):
-        """Process a DiaryEntryCreated event."""
         try:
-            # Extract required fields
-            user_id = data.get('user_id')
-            diary_id = data.get('diary_id')
-            content = data.get('content')
-            timestamp_str = data.get('created_at')
+            payload = data.get("payload", {})
+            if isinstance(payload, str):
+                payload = json.loads(payload)
             
-            if not all([user_id, diary_id, content, timestamp_str]):
-                logger.error(f"Missing required fields in DiaryEntryCreated event: {data}")
+            user_id = payload.get('user_id') if isinstance(payload, dict) else data.get('user_id')
+            diary_id = data.get('aggregate_id') or (payload.get('diary_id') if isinstance(payload, dict) else data.get('diary_id'))
+            content = payload.get('content') if isinstance(payload, dict) else data.get('content')
+            tokens_count = payload.get('token_count', 0) or payload.get('tokens_count', 0)
+            
+            if not user_id:
+                logger.error(f"user_id is missing in DiaryEntryCreated event payload: {data}")
                 return
             
-            # Parse timestamp
-            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            if not all([user_id, diary_id, content]):
+                logger.error(f"Missing required fields in DiaryEntryCreated event: user_id={user_id}, diary_id={diary_id}, has_content={bool(content)}")
+                return
             
-            # Analyze diary entry
-            mood_result = self.mood_analyzer.analyze_diary_entry(user_id, diary_id, content, timestamp)
+            mood_result = self.mood_analyzer.analyze(
+                text=content,
+                entry_id=diary_id,
+                user_id=user_id,
+                tokens_count=tokens_count
+            )
             
-            # Publish MoodAnalyzed event
             self.kafka_producer.publish_mood_analyzed(mood_result)
             
             logger.info(f"Processed DiaryEntryCreated event for diary {diary_id}")
@@ -173,25 +172,31 @@ class KafkaConsumer:
             logger.error(f"Error processing DiaryEntryCreated event: {e}")
 
     def _process_diary_entry_updated(self, data: Dict[str, Any]):
-        """Process a DiaryEntryUpdated event."""
         try:
-            # Extract required fields
-            user_id = data.get('user_id')
-            diary_id = data.get('diary_id')
-            content = data.get('content')
-            timestamp_str = data.get('updated_at')
+            payload = data.get("payload", {})
+            if isinstance(payload, str):
+                payload = json.loads(payload)
             
-            if not all([user_id, diary_id, content, timestamp_str]):
-                logger.error(f"Missing required fields in DiaryEntryUpdated event: {data}")
+            user_id = payload.get('user_id') if isinstance(payload, dict) else data.get('user_id')
+            diary_id = data.get('aggregate_id') or (payload.get('diary_id') if isinstance(payload, dict) else data.get('diary_id'))
+            content = payload.get('content') if isinstance(payload, dict) else data.get('content')
+            tokens_count = payload.get('token_count', 0) or payload.get('tokens_count', 0)
+            
+            if not user_id:
+                logger.error(f"user_id is missing in DiaryEntryUpdated event payload: {data}")
                 return
             
-            # Parse timestamp
-            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            if not all([user_id, diary_id, content]):
+                logger.error(f"Missing required fields in DiaryEntryUpdated event: user_id={user_id}, diary_id={diary_id}, has_content={bool(content)}")
+                return
             
-            # Analyze diary entry
-            mood_result = self.mood_analyzer.analyze_diary_entry(user_id, diary_id, content, timestamp)
+            mood_result = self.mood_analyzer.analyze(
+                text=content,
+                entry_id=diary_id,
+                user_id=user_id,
+                tokens_count=tokens_count
+            )
             
-            # Publish MoodAnalyzed event
             self.kafka_producer.publish_mood_analyzed(mood_result)
             
             logger.info(f"Processed DiaryEntryUpdated event for diary {diary_id}")

@@ -29,7 +29,12 @@ class EventHandler:
         correlation_id: Optional[str] = None,
         causation_id: Optional[str] = None
     ):
+        entry_id = None
+        user_id = None
+        
         try:
+            logger.debug("Raw event_data", event_data_keys=list(event_data.keys()) if isinstance(event_data, dict) else [])
+            
             payload = event_data.get("payload", {})
             if isinstance(payload, str):
                 import json
@@ -40,39 +45,97 @@ class EventHandler:
                 import json
                 metadata = json.loads(metadata)
             
+            logger.debug(
+                "Parsed structure",
+                payload_keys=list(payload.keys()) if isinstance(payload, dict) else [],
+                metadata_keys=list(metadata.keys()) if isinstance(metadata, dict) else []
+            )
+            
             correlation_id = correlation_id or metadata.get("correlation_id") or event_data.get("correlation_id")
             causation_id = causation_id or metadata.get("causation_id") or event_data.get("causation_id")
             
-            entry_id = event_data.get("aggregate_id") or payload.get("entry_id")
-            user_id = payload.get("user_id") or metadata.get("user_id")
-            content = payload.get("content") or payload.get("text", "")
-            tokens_count = payload.get("token_count", 0)
+            entry_id = event_data.get("aggregate_id") or payload.get("entry_id") or payload.get("diary_id")
+            user_id = payload.get("user_id")
             
-            if not all([entry_id, user_id, content]):
-                logger.warning(
-                    "Missing required fields in DiaryEntryCreated",
-                    event_data=event_data
+            if not user_id:
+                logger.error(
+                    "user_id is missing in event payload",
+                    entry_id=entry_id,
+                    payload_keys=list(payload.keys()) if isinstance(payload, dict) else [],
+                    event_data_keys=list(event_data.keys()) if isinstance(event_data, dict) else []
                 )
                 return
             
-            logger.info("Processing DiaryEntryCreated", entry_id=entry_id, user_id=user_id)
+            text = payload.get("content") or payload.get("text", "")
+            tokens_count = payload.get("token_count", 0) or payload.get("tokens_count", 0)
             
-            analysis_result = self.mood_analyzer.analyze(
-                text=content,
+            logger.info(
+                "Extracted event data (created)",
+                entry_id=entry_id,
+                user_id=user_id,
+                text_length=len(text) if text else 0,
+                text_preview=text[:100] if text else "",
+                text=text,
+                tokens_count=tokens_count,
+                payload_content=payload.get("content") if isinstance(payload, dict) else None,
+                payload_text=payload.get("text") if isinstance(payload, dict) else None
+            )
+            
+            if not all([entry_id, user_id, text]):
+                logger.warning(
+                    "Missing required fields in DiaryEntryCreated",
+                    entry_id=entry_id,
+                    user_id=user_id,
+                    has_text=bool(text)
+                )
+                return
+            
+            result = self.mood_analyzer.analyze(
+                text=text,
                 entry_id=entry_id,
                 user_id=user_id,
                 tokens_count=tokens_count
             )
             
-            async for session in self.db.get_session():
+            logger.info(
+                "Analysis result before saving",
+                entry_id=entry_id,
+                has_keywords="keywords" in result,
+                keywords=result.get("keywords", []),
+                keywords_count=len(result.get("keywords", [])),
+                has_detected_topics="detected_topics" in result,
+                detected_topics=result.get("detected_topics", []),
+                text_length=len(text) if text else 0,
+                result_keys=list(result.keys())
+            )
+            
+            if self.db and self.repository and entry_id != "temp" and user_id != "temp":
                 try:
-                    await self.repository.save_analysis(session, analysis_result)
-                    break
-                finally:
-                    await session.close()
+                    async with self.db.async_session_maker() as session:
+                        existing = await self.repository.get_by_entry_id(session, entry_id)
+                        if existing:
+                            await session.delete(existing)
+                            await session.commit()
+                        
+                        saved_analysis = await self.repository.save_analysis(session, result)
+                        logger.debug(
+                            "Analysis saved to DB",
+                            entry_id=entry_id,
+                            saved_keywords=saved_analysis.keywords,
+                            saved_keywords_count=len(saved_analysis.keywords) if saved_analysis.keywords else 0,
+                            saved_detected_topics=saved_analysis.detected_topics
+                        )
+                except Exception as e:
+                    logger.error(
+                        "Error saving analysis to DB",
+                        entry_id=entry_id,
+                        error=str(e),
+                        result_keywords=result.get("keywords", []),
+                        exc_info=True
+                    )
             
             self.kafka_producer.publish_mood_analyzed(
-                analysis_result,
+                result,
                 correlation_id=correlation_id,
                 causation_id=causation_id or event_data.get("id")
             )
@@ -83,13 +146,10 @@ class EventHandler:
             logger.error(
                 "Error processing DiaryEntryCreated",
                 error=str(e),
-                entry_id=entry_id if 'entry_id' in locals() else None,
-                user_id=user_id if 'user_id' in locals() else None,
+                entry_id=entry_id,
+                user_id=user_id,
                 exc_info=True
             )
-            
-            entry_id = event_data.get("aggregate_id") or (payload.get("entry_id") if 'payload' in locals() else None)
-            user_id = payload.get("user_id") if 'payload' in locals() else None
             
             if entry_id and user_id:
                 self.kafka_producer.publish_mood_analysis_failed(
@@ -106,6 +166,9 @@ class EventHandler:
         correlation_id: Optional[str] = None,
         causation_id: Optional[str] = None
     ):
+        entry_id = None
+        user_id = None
+        
         try:
             payload = event_data.get("payload", {})
             if isinstance(payload, str):
@@ -120,41 +183,88 @@ class EventHandler:
             correlation_id = correlation_id or metadata.get("correlation_id") or event_data.get("correlation_id")
             causation_id = causation_id or metadata.get("causation_id") or event_data.get("causation_id")
             
-            entry_id = event_data.get("aggregate_id")
-            user_id = payload.get("user_id") or metadata.get("user_id")
-            content = payload.get("content") or payload.get("text", "")
-            tokens_count = payload.get("token_count", 0)
+            entry_id = event_data.get("aggregate_id") or payload.get("entry_id") or payload.get("diary_id")
+            user_id = payload.get("user_id")
             
-            if not all([entry_id, user_id, content]):
-                logger.warning(
-                    "Missing required fields in DiaryEntryUpdated",
-                    event_data=event_data
+            if not user_id:
+                logger.error(
+                    "user_id is missing in event payload",
+                    entry_id=entry_id,
+                    payload_keys=list(payload.keys()) if isinstance(payload, dict) else [],
+                    event_data_keys=list(event_data.keys()) if isinstance(event_data, dict) else []
                 )
                 return
             
-            logger.info("Processing DiaryEntryUpdated", entry_id=entry_id, user_id=user_id)
+            text = payload.get("content") or payload.get("text", "")
+            tokens_count = payload.get("token_count", 0) or payload.get("tokens_count", 0)
             
-            analysis_result = self.mood_analyzer.analyze(
-                text=content,
+            logger.info(
+                "Extracted event data (updated)",
+                entry_id=entry_id,
+                user_id=user_id,
+                text_length=len(text) if text else 0,
+                text_preview=text[:100] if text else "",
+                text=text,
+                tokens_count=tokens_count,
+                payload_content=payload.get("content"),
+                payload_text=payload.get("text")
+            )
+            
+            if not all([entry_id, user_id, text]):
+                logger.warning(
+                    "Missing required fields in DiaryEntryUpdated",
+                    entry_id=entry_id,
+                    user_id=user_id,
+                    has_text=bool(text)
+                )
+                return
+            
+            result = self.mood_analyzer.analyze(
+                text=text,
                 entry_id=entry_id,
                 user_id=user_id,
                 tokens_count=tokens_count
             )
             
-            async for session in self.db.get_session():
+            logger.info(
+                "Analysis result before saving (updated)",
+                entry_id=entry_id,
+                has_keywords="keywords" in result,
+                keywords=result.get("keywords", []),
+                keywords_count=len(result.get("keywords", [])),
+                has_detected_topics="detected_topics" in result,
+                detected_topics=result.get("detected_topics", []),
+                text_length=len(text) if text else 0,
+                result_keys=list(result.keys())
+            )
+            
+            if self.db and self.repository and entry_id != "temp" and user_id != "temp":
                 try:
-                    existing = await self.repository.get_by_entry_id(session, entry_id)
-                    if existing:
-                        await session.delete(existing)
-                        await session.commit()
-                    
-                    await self.repository.save_analysis(session, analysis_result)
-                    break
-                finally:
-                    await session.close()
+                    async with self.db.async_session_maker() as session:
+                        existing = await self.repository.get_by_entry_id(session, entry_id)
+                        if existing:
+                            await session.delete(existing)
+                            await session.commit()
+                        
+                        saved_analysis = await self.repository.save_analysis(session, result)
+                        logger.debug(
+                            "Analysis saved to DB (updated)",
+                            entry_id=entry_id,
+                            saved_keywords=saved_analysis.keywords,
+                            saved_keywords_count=len(saved_analysis.keywords) if saved_analysis.keywords else 0,
+                            saved_detected_topics=saved_analysis.detected_topics
+                        )
+                except Exception as e:
+                    logger.error(
+                        "Error saving analysis to DB",
+                        entry_id=entry_id,
+                        error=str(e),
+                        result_keywords=result.get("keywords", []),
+                        exc_info=True
+                    )
             
             self.kafka_producer.publish_mood_analyzed(
-                analysis_result,
+                result,
                 correlation_id=correlation_id,
                 causation_id=causation_id or event_data.get("id")
             )
@@ -165,13 +275,10 @@ class EventHandler:
             logger.error(
                 "Error processing DiaryEntryUpdated",
                 error=str(e),
-                entry_id=entry_id if 'entry_id' in locals() else None,
-                user_id=user_id if 'user_id' in locals() else None,
+                entry_id=entry_id,
+                user_id=user_id,
                 exc_info=True
             )
-            
-            entry_id = event_data.get("aggregate_id")
-            user_id = payload.get("user_id") if 'payload' in locals() else None
             
             if entry_id and user_id:
                 self.kafka_producer.publish_mood_analysis_failed(

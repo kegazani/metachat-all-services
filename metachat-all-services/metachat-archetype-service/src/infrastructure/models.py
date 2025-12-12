@@ -5,8 +5,8 @@ from datetime import datetime
 from src.infrastructure.database import Base
 
 
-class UserArchetypeData(Base):
-    __tablename__ = "user_archetype_data"
+class UserPersonalityData(Base):
+    __tablename__ = "user_personality_data"
     
     user_id = Column(String, primary_key=True)
     accumulated_tokens = Column(Integer, nullable=False, default=0)
@@ -17,13 +17,17 @@ class UserArchetypeData(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
-class ArchetypeCalculation(Base):
-    __tablename__ = "archetype_calculations"
+class BigFiveCalculation(Base):
+    __tablename__ = "big_five_calculations"
     
     id = Column(String, primary_key=True)
     user_id = Column(String, nullable=False, index=True)
-    archetype = Column(String, nullable=False)
-    archetype_probabilities = Column(JSON, nullable=False)
+    openness = Column(Float, nullable=False)
+    conscientiousness = Column(Float, nullable=False)
+    extraversion = Column(Float, nullable=False)
+    agreeableness = Column(Float, nullable=False)
+    neuroticism = Column(Float, nullable=False)
+    dominant_trait = Column(String, nullable=False)
     confidence = Column(Float, nullable=False)
     model_version = Column(String, nullable=False)
     tokens_analyzed = Column(Integer, nullable=False)
@@ -31,6 +35,6 @@ class ArchetypeCalculation(Base):
     calculated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     __table_args__ = (
-        Index("idx_archetype_calc_user_calculated", "user_id", "calculated_at"),
+        Index("idx_big_five_calc_user_calculated", "user_id", "calculated_at"),
     )
 

@@ -1,43 +1,224 @@
-name: Metachat Swarm Deploy
+name: CI/CD Pipeline
+
 on:
   push:
-    branches:
-      - main
+    branches: [main, master, develop]
+    paths:
+      - 'metachat-all-services/**'
+      - 'docker/**'
+      - '.github/workflows/ci-cd.yml'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'Deploy target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ${{ secrets.REGISTRY_URL || 'ghcr.io' }}
+  IMAGE_PREFIX: ${{ github.repository_owner }}/metachat
+
 jobs:
-  deploy-infra:
+  detect-changes:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    outputs:
+      services: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api-gateway:
+              - 'metachat-all-services/metachat-api-gateway/**'
+            user-service:
+              - 'metachat-all-services/metachat-user-service/**'
+            diary-service:
+              - 'metachat-all-services/metachat-diary-service/**'
+            matching-service:
+              - 'metachat-all-services/metachat-matching-service/**'
+            match-request-service:
+              - 'metachat-all-services/metachat-match-request-service/**'
+            chat-service:
+              - 'metachat-all-services/metachat-chat-service/**'
+            mood-analysis-service:
+              - 'metachat-all-services/metachat-mood-analysis-service/**'
+            analytics-service:
+              - 'metachat-all-services/metachat-analytics-service/**'
+            archetype-service:
+              - 'metachat-all-services/metachat-archetype-service/**'
+            biometric-service:
+              - 'metachat-all-services/metachat-biometric-service/**'
+            correlation-service:
+              - 'metachat-all-services/metachat-correlation-service/**'
+
+  build-and-push:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - user-service
+          - diary-service
+          - matching-service
+          - match-request-service
+          - chat-service
+          - mood-analysis-service
+          - analytics-service
+          - archetype-service
+          - biometric-service
+          - correlation-service
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
         with:
-          ssh-private-key: ${{ secrets.INFRA_SSH_KEY }}
-      - name: Deploy infrastructure
-        env:
-          INFRA_HOST: ${{ secrets.INFRA_HOST }}
-          INFRA_USER: ${{ secrets.INFRA_USER }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Private Registry
+        if: ${{ secrets.PRIVATE_REGISTRY_URL != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.PRIVATE_REGISTRY_URL }}
+          username: ${{ secrets.PRIVATE_REGISTRY_USER }}
+          password: ${{ secrets.PRIVATE_REGISTRY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./metachat-all-services
+          file: ./metachat-all-services/metachat-${{ matrix.service }}/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Push to Private Registry
+        if: ${{ github.event_name != 'pull_request' && secrets.PRIVATE_REGISTRY_URL != '' }}
         run: |
-          ssh -o StrictHostKeyChecking=no $INFRA_USER@$INFRA_HOST "mkdir -p /opt/metachat"
-          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ $INFRA_USER@$INFRA_HOST:/opt/metachat
-          ssh -o StrictHostKeyChecking=no $INFRA_USER@$INFRA_HOST "cd /opt/metachat && make init && make build && REGISTRY_URL=${{ secrets.DOCKER_REGISTRY_URL }} IMAGE_TAG=latest ./scripts/build-images.sh && docker stack deploy -c docker/infrastructure-stack.yml metachat-infra && docker stack deploy -c docker/swarmpit-stack.yml swarmpit"
-  deploy-services:
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest \
+            ${{ secrets.PRIVATE_REGISTRY_URL }}/metachat/${{ matrix.service }}:latest
+          docker push ${{ secrets.PRIVATE_REGISTRY_URL }}/metachat/${{ matrix.service }}:latest
+
+  deploy-staging:
+    needs: build-and-push
     runs-on: ubuntu-latest
-    needs: deploy-infra
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'staging')
+    environment: staging
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
+
+      - name: Deploy to Staging
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          ssh-private-key: ${{ secrets.SERVICES_SSH_KEY }}
-      - name: Deploy services
-        env:
-          SERVICES_HOST: ${{ secrets.SERVICES_HOST }}
-          SERVICES_USER: ${{ secrets.SERVICES_USER }}
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd ${{ secrets.STAGING_PATH }}
+            git pull origin develop
+            
+            export REGISTRY=${{ secrets.PRIVATE_REGISTRY_URL || env.REGISTRY }}
+            export TAG=latest
+            
+            docker stack deploy -c docker/docker-compose.swarm.yml metachat --with-registry-auth
+            
+            echo "Waiting for services to start..."
+            sleep 30
+            
+            docker service ls | grep metachat
+
+  deploy-production:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'production')
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Production
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            cd ${{ secrets.PRODUCTION_PATH }}
+            git pull origin main
+            
+            export REGISTRY=${{ secrets.PRIVATE_REGISTRY_URL || env.REGISTRY }}
+            export TAG=${{ github.sha }}
+            
+            docker stack deploy -c docker/docker-compose.swarm.yml metachat --with-registry-auth
+            
+            echo "Waiting for services to start..."
+            sleep 30
+            
+            docker service ls | grep metachat
+
+      - name: Health Check
         run: |
-          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "mkdir -p /opt/metachat"
-          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ $SERVICES_USER@$SERVICES_HOST:/opt/metachat
-          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "cd /opt/metachat && make build && REGISTRY_URL=${{ secrets.DOCKER_REGISTRY_URL }} IMAGE_TAG=latest ./scripts/build-images.sh && docker stack deploy -c docker/services-stack.yml metachat-services"
+          echo "Running health checks..."
+          for i in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.PRODUCTION_HOST }}/api/health || echo "000")
+            if [ "$response" = "200" ]; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            echo "Attempt $i: Got $response, waiting..."
+            sleep 10
+          done
+          echo "Health check failed!"
+          exit 1
+
+  notify:
+    needs: [build-and-push, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Send notification
+        run: |
+          if [ "${{ needs.deploy-production.result }}" = "success" ]; then
+            echo "✅ Deployment successful!"
+          elif [ "${{ needs.deploy-production.result }}" = "failure" ]; then
+            echo "❌ Deployment failed!"
+          else
+            echo "ℹ️ Build completed, deployment skipped"
+          fi
+

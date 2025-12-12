@@ -1,0 +1,25 @@
+name: Deploy Archetype Service
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVICES_SSH_KEY }}
+      - name: Build and deploy
+        env:
+          SERVICES_HOST: ${{ secrets.SERVICES_HOST }}
+          SERVICES_USER: ${{ secrets.SERVICES_USER }}
+          INFRA_CASSANDRA: ${{ secrets.INFRA_CASSANDRA_HOST }}
+          INFRA_KAFKA: ${{ secrets.INFRA_KAFKA_HOST }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "mkdir -p /opt/metachat-services/archetype-service"
+          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ $SERVICES_USER@$SERVICES_HOST:/opt/metachat-services/archetype-service
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "cd /opt/metachat-services/archetype-service && docker build -t metachat/archetype-service:latest . && docker service update --image metachat/archetype-service:latest --env-add CASSANDRA_HOSTS=$INFRA_CASSANDRA --env-add KAFKA_BOOTSTRAP_SERVERS=$INFRA_KAFKA --env-add CASSANDRA_KEYSPACE=metachat --env-add SERVER_PORT=8000 --env-add GRPC_PORT=50058 --publish-add 8002:8000 --publish-add 50058:50058 metachat-services_archetype-service || docker service create --name metachat-services_archetype-service --network metachat_overlay -e KAFKA_BOOTSTRAP_SERVERS=$INFRA_KAFKA -e CASSANDRA_HOSTS=$INFRA_CASSANDRA -e CASSANDRA_KEYSPACE=metachat -e SERVER_PORT=8000 -e GRPC_PORT=50058 -p 8002:8000 -p 50058:50058 metachat/archetype-service:latest"

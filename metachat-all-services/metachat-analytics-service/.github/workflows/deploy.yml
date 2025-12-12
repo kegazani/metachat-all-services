@@ -1,0 +1,27 @@
+name: Deploy Analytics Service
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVICES_SSH_KEY }}
+      - name: Build and deploy
+        env:
+          SERVICES_HOST: ${{ secrets.SERVICES_HOST }}
+          SERVICES_USER: ${{ secrets.SERVICES_USER }}
+          INFRA_CASSANDRA: ${{ secrets.INFRA_CASSANDRA_HOST }}
+          INFRA_KAFKA: ${{ secrets.INFRA_KAFKA_HOST }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "mkdir -p /opt/metachat-services/analytics-service"
+          rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" ./ $SERVICES_USER@$SERVICES_HOST:/opt/metachat-services/analytics-service
+          ssh -o StrictHostKeyChecking=no $SERVICES_USER@$SERVICES_HOST "cd /opt/metachat-services/analytics-service && docker build -t metachat/analytics-service:latest . && docker service update --image metachat/analytics-service:latest --env-add CASSANDRA_HOSTS=$INFRA_CASSANDRA --env-add KAFKA_BOOTSTRAP_SERVERS=$INFRA_KAFKA --env-add CASSANDRA_KEYSPACE=metachat --env-add SERVER_PORT=8000 --env-add GRPC_PORT=50057 --publish-add 8001:8000 --publish-add 50057:50057 metachat-services_analytics-service || docker service create --name metachat-services_analytics-service --network metachat_overlay -e KAFKA_BOOTSTRAP_SERVERS=$INFRA_KAFKA -e CASSANDRA_HOSTS=$INFRA_CASSANDRA -e CASSANDRA_KEYSPACE=metachat -e SERVER_PORT=8000 -e GRPC_PORT=50057 -p 8001:8000 -p 50057:50057 metachat/analytics-service:latest"
+
+

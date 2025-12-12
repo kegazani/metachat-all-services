@@ -1,499 +1,402 @@
-# Инструкция по развертыванию и настройке MetaChat
+# Инструкция по деплою сервисов MetaChat
 
-## Требования к системе
+Этот документ описывает процесс настройки и деплоя всех сервисов MetaChat через GitHub Actions.
 
-### Аппаратные требования
-- CPU: Минимум 4 ядра, рекомендуется 8+ ядер
-- RAM: Минимум 8GB, рекомендуется 16GB+
-- Диск: Минимум 100GB SSD, рекомендуется 200GB+ SSD
+## 📋 Предварительная настройка
 
-### Программные требования
-- Docker 20.10+
-- Docker Compose 2.0+
-- Kubernetes 1.23+ (для продакшн развертывания)
-- kubectl 1.23+
-- Helm 3.8+ (для продакшн развертывания)
-- Git 2.30+
+### 1. Настройка сервера
 
-## Локальное развертывание
-
-### 1. Клонирование репозитория
+#### Установка Docker и Docker Swarm
 
 ```bash
-git clone https://github.com/metachat/metachat.git
-cd metachat
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+docker swarm init
 ```
 
-### 2. Настройка переменных окружения
-
-Создайте файл `.env` в корне проекта на основе шаблона `.env.example`:
+#### Создание Docker overlay сети
 
 ```bash
-cp .env.example .env
+docker network create --driver overlay metachat_overlay
 ```
 
-Отредактируйте файл `.env`, указав необходимые значения:
+#### Примечание об инфраструктуре
 
-```env
-# Общие настройки
-ENVIRONMENT=development
-LOG_LEVEL=debug
+⚠️ **Важно:** Инфраструктура (Kafka, Cassandra, PostgreSQL, EventStore) должна быть запущена на **отдельном сервере**. 
 
-# Настройки баз данных
-EVENTSTOREDB_HOST=eventstoredb
-EVENTSTOREDB_PORT=2113
-EVENTSTOREDB_USER=admin
-EVENTSTOREDB_PASSWORD=changeit
-
-CASSANDRA_HOST=cassandra
-CASSANDRA_PORT=9042
-CASSANDRA_USER=cassandra
-CASSANDRA_PASSWORD=cassandra
-
-# Настройки Kafka
-KAFKA_HOST=kafka
-KAFKA_PORT=9092
-KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-
-# Настройки сервисов
-USER_SERVICE_PORT=8080
-DIARY_SERVICE_PORT=8081
-MOOD_ANALYSIS_SERVICE_PORT=8082
-MATCHING_SERVICE_PORT=8083
-
-# Настройки API Gateway
-API_GATEWAY_PORT=8000
-API_GATEWAY_HOST=localhost
-
-# Настройки JWT
-JWT_SECRET=your-super-secret-jwt-key
-JWT_EXPIRES_IN=3600
-```
-
-### 3. Запуск системы с помощью Docker Compose
+Если инфраструктура еще не настроена, запустите её на сервере инфраструктуры:
 
 ```bash
-docker-compose up -d
+cd docker
+docker-compose -f docker-compose.infrastructure.yml up -d
 ```
 
-### 4. Проверка работоспособности
+Убедитесь, что порты инфраструктуры доступны с сервера, где деплоятся сервисы:
+- Cassandra: `9042`
+- Kafka: `29092`
+- PostgreSQL: `5432`
+- EventStore: `2113`
 
-Проверьте статус всех контейнеров:
+### 2. Настройка SSH доступа
+
+#### Создание SSH ключа для GitHub Actions
+
+На вашем локальном компьютере:
 
 ```bash
-docker-compose ps
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_actions_deploy
 ```
 
-Проверьте логи сервисов:
+#### Копирование публичного ключа на сервер
 
 ```bash
-docker-compose logs -f user-service
-docker-compose logs -f diary-service
-docker-compose logs -f mood-analysis-service
-docker-compose logs -f matching-service
+ssh-copy-id -i ~/.ssh/github_actions_deploy.pub user@your-server-ip
 ```
 
-### 5. Доступ к сервисам
-
-- API Gateway: http://localhost:8000
-- User Service: http://localhost:8000/users
-- Diary Service: http://localhost:8000/diary
-- Mood Analysis Service: http://localhost:8000/mood
-- Matching Service: http://localhost:8000/matching
-
-## Продакшн развертывание
-
-### 1. Подготовка Kubernetes кластера
-
-Убедитесь, что у вас есть доступ к Kubernetes кластеру и kubectl настроен:
+Или вручную:
 
 ```bash
-kubectl cluster-info
-kubectl get nodes
+cat ~/.ssh/github_actions_deploy.pub | ssh user@your-server-ip "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
 ```
 
-### 2. Установка Helm
-
-Если Helm еще не установлен:
+#### Проверка подключения
 
 ```bash
-curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-sudo apt-get update
-sudo apt-get install helm
+ssh -i ~/.ssh/github_actions_deploy user@your-server-ip
 ```
 
-### 3. Установка Ingress Controller
+### 3. Настройка GitHub Secrets
+
+Перейдите в ваш GitHub репозиторий:
+**Settings → Secrets and variables → Actions → New repository secret**
+
+#### Основные secrets для деплоя:
+
+- **`SERVICES_SSH_KEY`** - Приватный SSH ключ (содержимое файла `~/.ssh/github_actions_deploy`)
+  ```bash
+  cat ~/.ssh/github_actions_deploy
+  ```
+
+- **`SERVICES_HOST`** - IP адрес или домен сервера, где деплоятся сервисы
+  - Пример: `192.168.1.100` или `deploy.example.com`
+
+- **`SERVICES_USER`** - Пользователь для SSH подключения к серверу сервисов
+  - Пример: `ubuntu`, `deploy`, `root`
+
+#### Secrets для инфраструктуры (на другом сервере):
+
+- **`INFRA_CASSANDRA_HOST`** - Адрес Cassandra на сервере инфраструктуры
+  - Пример: `infra-server:9042` или `192.168.1.200:9042`
+
+- **`INFRA_KAFKA_HOST`** - Адрес Kafka на сервере инфраструктуры
+  - Пример: `infra-server:29092` или `192.168.1.200:29092`
+
+- **`INFRA_EVENTSTORE_URL`** - URL EventStore на сервере инфраструктуры
+  - Пример: `http://infra-server:2113` или `http://192.168.1.200:2113`
+
+- **`INFRA_EVENTSTORE_USERNAME`** - Имя пользователя EventStore
+  - Пример: `admin`
+
+- **`INFRA_EVENTSTORE_PASSWORD`** - Пароль EventStore
+  - Пример: `changeit`
+
+- **`INFRA_POSTGRES_HOST`** - Адрес PostgreSQL на сервере инфраструктуры
+  - Пример: `infra-server:5432` или `192.168.1.200:5432`
+
+- **`INFRA_POSTGRES_USER`** - Пользователь PostgreSQL
+  - Пример: `postgres`
+
+- **`INFRA_POSTGRES_PASSWORD`** - Пароль PostgreSQL
+  - Пример: `postgres`
+
+- **`INFRA_POSTGRES_DB`** - Имя базы данных
+  - Пример: `metachat`
+
+#### Secrets для API Gateway (адреса других сервисов):
+
+- **`SERVICES_USER_SERVICE_ADDRESS`** - Адрес user-service
+  - Пример: `user-service:50051` (если в одной сети) или `192.168.1.100:50051`
+
+- **`SERVICES_DIARY_SERVICE_ADDRESS`** - Адрес diary-service
+  - Пример: `diary-service:50052`
+
+- **`SERVICES_MATCHING_SERVICE_ADDRESS`** - Адрес matching-service
+  - Пример: `matching-service:50053`
+
+- **`SERVICES_MATCH_REQUEST_SERVICE_ADDRESS`** - Адрес match-request-service
+  - Пример: `match-request-service:50054`
+
+- **`SERVICES_CHAT_SERVICE_ADDRESS`** - Адрес chat-service
+  - Пример: `chat-service:50055`
+
+## 🚀 Процесс деплоя
+
+### Автоматический деплой
+
+Каждый сервис имеет свой workflow файл в `.github/workflows/deploy.yml`. 
+
+**Деплой происходит автоматически при push в ветку `main`:**
 
 ```bash
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm repo update
-helm install ingress-nginx ingress-nginx/ingress-nginx
+git add .
+git commit -m "Update service"
+git push origin main
 ```
 
-### 4. Установка Cert-Manager (для SSL сертификатов)
+### Что происходит при деплое
+
+1. **GitHub Actions запускает workflow** для измененного сервиса
+2. **Checkout кода** - Клонирование репозитория
+3. **SSH подключение** - Подключение к серверу через SSH
+4. **Копирование файлов** - Синхронизация кода через `rsync`
+5. **Сборка Docker образа** - `docker build -t metachat/service-name:latest .`
+6. **Обновление/создание Docker service** - Обновление существующего или создание нового сервиса в Docker Swarm
+
+### Ручной запуск деплоя
+
+1. Перейдите в **Actions** в GitHub
+2. Выберите нужный workflow (например, "Deploy User Service")
+3. Нажмите **Run workflow**
+4. Выберите ветку и нажмите **Run workflow**
+
+## 📦 Структура деплоя
+
+### Расположение на сервере
+
+Все сервисы деплоятся в:
+```
+/opt/metachat-services/
+├── api-gateway/
+├── user-service/
+├── diary-service/
+├── matching-service/
+├── match-request-service/
+├── chat-service/
+├── mood-analysis-service/
+├── analytics-service/
+├── archetype-service/
+├── biometric-service/
+├── correlation-service/
+└── event-sourcing/
+```
+
+### Docker Services
+
+Каждый сервис создается как Docker Swarm service:
 
 ```bash
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
-helm install \
-  cert-manager jetstack/cert-manager \
-  --namespace cert-manager \
-  --create-namespace
+docker service ls
 ```
 
-### 5. Установка Prometheus и Grafana (для мониторинга)
+Вы увидите список всех сервисов:
+- `metachat-services_api-gateway`
+- `metachat-services_user-service`
+- `metachat-services_diary-service`
+- и т.д.
+
+## 🔍 Проверка статуса деплоя
+
+### Просмотр логов в GitHub Actions
+
+1. Перейдите в **Actions** в GitHub
+2. Выберите нужный workflow run
+3. Просмотрите логи шага "Build and deploy"
+
+### Проверка на сервере
+
+#### Список всех сервисов
 
 ```bash
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-helm install prometheus prometheus-community/kube-prometheus-stack
+docker service ls
 ```
 
-### 6. Развертывание баз данных
-
-#### EventStoreDB
+#### Статус конкретного сервиса
 
 ```bash
-helm install eventstoredb ./helm/eventstoredb
+docker service ps metachat-services_user-service
 ```
 
-#### Cassandra
+#### Логи сервиса
 
 ```bash
-helm install cassandra ./helm/cassandra
+docker service logs metachat-services_user-service
 ```
 
-#### Kafka
+#### Проверка сети
 
 ```bash
-helm install kafka ./helm/kafka
+docker network inspect metachat_overlay
 ```
 
-### 7. Развертывание сервисов
+## 🛠️ Управление сервисами
 
-#### User Service
+### Перезапуск сервиса
 
 ```bash
-helm install user-service ./helm/user-service
+docker service update --force metachat-services_user-service
 ```
 
-#### Diary Service
+### Масштабирование сервиса
 
 ```bash
-helm install diary-service ./helm/diary-service
+docker service scale metachat-services_user-service=3
 ```
 
-#### Mood Analysis Service
+### Удаление сервиса
 
 ```bash
-helm install mood-analysis-service ./helm/mood-analysis-service
+docker service rm metachat-services_user-service
 ```
 
-#### Matching Service
+### Просмотр конфигурации сервиса
 
 ```bash
-helm install matching-service ./helm/matching-service
+docker service inspect metachat-services_user-service
 ```
 
-### 8. Развертывание API Gateway
+## 🐛 Troubleshooting
+
+### Ошибка SSH подключения
+
+**Проблема:** `Permission denied (publickey)`
+
+**Решение:**
+1. Проверьте, что приватный ключ правильно скопирован в GitHub Secrets
+2. Убедитесь, что публичный ключ добавлен на сервер:
+   ```bash
+   ssh user@server "cat ~/.ssh/authorized_keys"
+   ```
+3. Проверьте права доступа на сервере:
+   ```bash
+   ssh user@server "chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
+   ```
+
+### Ошибка при сборке Docker образа
+
+**Проблема:** `docker build` завершается с ошибкой
+
+**Решение:**
+1. Подключитесь к серверу и проверьте вручную:
+   ```bash
+   ssh user@server
+   cd /opt/metachat-services/user-service
+   docker build -t metachat/user-service:latest .
+   ```
+2. Проверьте Dockerfile на наличие ошибок
+3. Убедитесь, что все зависимости доступны
+
+### Сервис не запускается
+
+**Проблема:** Сервис создан, но не работает
+
+**Решение:**
+1. Проверьте логи:
+   ```bash
+   docker service logs metachat-services_user-service
+   ```
+2. Убедитесь, что сеть создана:
+   ```bash
+   docker network ls | grep metachat_overlay
+   ```
+3. Проверьте, что инфраструктура запущена (Kafka, Cassandra, PostgreSQL и т.д.)
+
+### Ошибка "network metachat_overlay not found"
+
+**Решение:**
+```bash
+docker network create --driver overlay metachat_overlay
+```
+
+### Сервис не может подключиться к другим сервисам
+
+**Проблема:** Сервисы не видят друг друга в сети
+
+**Решение:**
+1. Убедитесь, что все сервисы в одной сети:
+   ```bash
+   docker service inspect metachat-services_user-service | grep Network
+   ```
+2. Проверьте DNS резолвинг:
+   ```bash
+   docker service exec metachat-services_user-service ping api-gateway
+   ```
+
+## 📊 Мониторинг
+
+### Просмотр использования ресурсов
 
 ```bash
-helm install api-gateway ./helm/api-gateway
+docker stats
 ```
 
-### 9. Настройка Ingress
+### Просмотр событий Docker Swarm
 
 ```bash
-kubectl apply -f k8s/ingress.yaml
+docker service events
 ```
 
-### 10. Проверка работоспособности
+## 🔄 Обновление всех сервисов
 
-Проверьте статус всех подов:
+Для обновления всех сервисов одновременно:
+
+1. Сделайте push в main ветку для каждого сервиса
+2. Или используйте скрипт на сервере:
 
 ```bash
-kubectl get pods
+#!/bin/bash
+services=("api-gateway" "user-service" "diary-service" "matching-service" "match-request-service" "chat-service" "mood-analysis-service" "analytics-service" "archetype-service" "biometric-service" "correlation-service" "event-sourcing")
+
+for service in "${services[@]}"; do
+  echo "Updating $service..."
+  docker service update --force metachat-services_${service//-/_}
+done
 ```
 
-Проверьте статус сервисов:
+## 🔐 Безопасность
+
+### Рекомендации
+
+1. **Используйте отдельный SSH ключ** только для CI/CD
+2. **Ограничьте права доступа** пользователя на сервере
+3. **Используйте firewall** для ограничения доступа к портам
+4. **Регулярно обновляйте** Docker и систему
+5. **Используйте secrets** для хранения паролей и ключей
+
+### Настройка пользователя с ограниченными правами
 
 ```bash
-kubectl get svc
+sudo useradd -m -s /bin/bash deploy
+sudo usermod -aG docker deploy
+sudo mkdir -p /opt/metachat-services
+sudo chown -R deploy:deploy /opt/metachat-services
 ```
 
-Проверьте статус Ingress:
+## 📝 Список всех сервисов
+
+Всего настроено **12 сервисов** с автоматическим деплоем:
+
+1. ✅ `metachat-api-gateway`
+2. ✅ `metachat-user-service`
+3. ✅ `metachat-diary-service`
+4. ✅ `metachat-matching-service`
+5. ✅ `metachat-match-request-service`
+6. ✅ `metachat-chat-service`
+7. ✅ `metachat-mood-analysis-service`
+8. ✅ `metachat-analytics-service`
+9. ✅ `metachat-archetype-service`
+10. ✅ `metachat-biometric-service`
+11. ✅ `metachat-correlation-service`
+12. ✅ `metachat-event-sourcing`
+
+## 🎉 Готово!
+
+После настройки каждый push в main ветку будет автоматически деплоить соответствующий сервис!
+
+Для проверки работы:
+1. Сделайте небольшое изменение в любом сервисе
+2. Закоммитьте и запушьте в main
+3. Перейдите в Actions и наблюдайте за деплоем
+4. Проверьте статус на сервере: `docker service ls`
 
-```bash
-kubectl get ingress
-```
-
-## Настройка мониторинга
-
-### 1. Доступ к Grafana
-
-Получите пароль для Grafana:
-
-```bash
-kubectl get secret --namespace default prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode ; echo
-```
-
-Доступ к Grafana через Ingress:
-
-```
-http://grafana.your-domain.com
-```
-
-### 2. Настройка дашбордов
-
-Импортируйте преднастроенные дашборды из `monitoring/grafana-dashboards/`:
-
-1. Откройте Grafana
-2. Перейдите в Dashboards -> Import
-3. Загрузите JSON файлы дашбордов
-
-### 3. Настройка алертов
-
-Настройте алерты в Grafana для уведомления о критических событиях:
-
-1. Перейдите в Alerting -> Notification channels
-2. Создайте канал уведомлений (email, Slack, etc.)
-3. Перейдите в Alerting -> Alert rules
-4. Создайте правила алертов на основе метрик
-
-## Настройка логирования
-
-### 1. Установка EFK стека (Elasticsearch, Fluentd, Kibana)
-
-```bash
-helm repo add elastic https://helm.elastic.co
-helm repo update
-
-helm install elasticsearch elastic/elasticsearch
-helm install kibana elastic/kibana
-helm install fluentd fluent/fluentd
-```
-
-### 2. Настройка Fluentd
-
-```bash
-kubectl apply -f k8s/fluentd-configmap.yaml
-```
-
-### 3. Доступ к Kibana
-
-Получите пароль для Kibana:
-
-```bash
-kubectl get secret --namespace default elasticsearch-es-elastic-user -o jsonpath="{.data.elastic}" | base64 --decode ; echo
-```
-
-Доступ к Kibana через Ingress:
-
-```
-http://kibana.your-domain.com
-```
-
-### 4. Создание индексов в Kibana
-
-1. Откройте Kibana
-2. Перейдите в Management -> Index Patterns
-3. Создайте индекс patterns для логов каждого сервиса
-
-## Обновление системы
-
-### 1. Обновление образов
-
-Соберите новые образы Docker:
-
-```bash
-docker-compose build
-```
-
-Или для продакшн:
-
-```bash
-docker build -t your-registry/metachat/user-service:latest ./services/user-service
-docker build -t your-registry/metachat/diary-service:latest ./services/diary-service
-docker build -t your-registry/metachat/mood-analysis-service:latest ./services/mood-analysis-service
-docker build -t your-registry/metachat/matching-service:latest ./services/matching-service
-
-docker push your-registry/metachat/user-service:latest
-docker push your-registry/metachat/diary-service:latest
-docker push your-registry/metachat/mood-analysis-service:latest
-docker push your-registry/metachat/matching-service:latest
-```
-
-### 2. Обновление Helm релизов
-
-```bash
-helm upgrade user-service ./helm/user-service
-helm upgrade diary-service ./helm/diary-service
-helm upgrade mood-analysis-service ./helm/mood-analysis-service
-helm upgrade matching-service ./helm/matching-service
-helm upgrade api-gateway ./helm/api-gateway
-```
-
-## Резервное копирование и восстановление
-
-### 1. Резервное копирование EventStoreDB
-
-```bash
-kubectl exec -it eventstoredb-0 -- /bin/bash
-cd /var/lib/eventstore
-tar -czvf eventstore-backup-$(date +%Y%m%d).tar.gz *
-exit
-kubectl cp eventstoredb-0:/var/lib/eventstore/eventstore-backup-$(date +%Y%m%d).tar.gz ./backups/
-```
-
-### 2. Резервное копирование Cassandra
-
-```bash
-kubectl exec -it cassandra-0 -- /bin/bash
-nodetool snapshot
-exit
-kubectl cp cassandra-0:/var/lib/cassandra/data/$(ls /var/lib/cassandra/data | grep snapshot) ./backups/cassandra-backup-$(date +%Y%m%d)/
-```
-
-### 3. Восстановление EventStoreDB
-
-```bash
-kubectl cp ./backups/eventstore-backup-YYYYMMDD.tar.gz eventstoredb-0:/var/lib/eventstore/
-kubectl exec -it eventstoredb-0 -- /bin/bash
-cd /var/lib/eventstore
-tar -xzvf eventstore-backup-YYYYMMDD.tar.gz
-exit
-```
-
-### 4. Восстановление Cassandra
-
-```bash
-kubectl cp ./backups/cassandra-backup-YYYYMMDD cassandra-0:/var/lib/cassandra/data/
-kubectl exec -it cassandra-0 -- /bin/bash
-nodetool refresh
-exit
-```
-
-## Безопасность
-
-### 1. Настройка SSL/TLS
-
-Используйте Cert-Manager для автоматического выпуска SSL сертификатов:
-
-```yaml
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: your-email@example.com
-    privateKeySecretRef:
-      name: letsencrypt-prod
-    solvers:
-    - http01:
-        ingress:
-          class: nginx
-```
-
-### 2. Настройка сетевых политик
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: user-service-netpol
-spec:
-  podSelector:
-    matchLabels:
-      app: user-service
-  policyTypes:
-  - Ingress
-  - Egress
-  ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          app: api-gateway
-  egress:
-  - to:
-    - podSelector:
-        matchLabels:
-          app: eventstoredb
-    - podSelector:
-        matchLabels:
-          app: cassandra
-```
-
-### 3. Настройка RBAC
-
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: user-service-role
-rules:
-- apiGroups: [""]
-  resources: ["pods", "services", "configmaps"]
-  verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: user-service-rolebinding
-subjects:
-- kind: ServiceAccount
-  name: user-service
-roleRef:
-  kind: Role
-  name: user-service-role
-  apiGroup: rbac.authorization.k8s.io
-```
-
-## Решение проблем
-
-### 1. Проверка логов
-
-```bash
-kubectl logs -f deployment/user-service
-kubectl logs -f deployment/diary-service
-kubectl logs -f deployment/mood-analysis-service
-kubectl logs -f deployment/matching-service
-kubectl logs -f deployment/api-gateway
-```
-
-### 2. Проверка событий
-
-```bash
-kubectl get events --sort-by='.metadata.creationTimestamp'
-```
-
-### 3. Проверка описания ресурсов
-
-```bash
-kubectl describe deployment/user-service
-kubectl describe pod/user-service-xxxxxxxx-xxxxx
-```
-
-### 4. Проверка конфигурации
-
-```bash
-kubectl get configmap user-service-config -o yaml
-kubectl get secret user-service-secret -o yaml
-```
-
-### 5. Перезапуск подов
-
-```bash
-kubectl rollout restart deployment/user-service
-```
-
-### 6. Откат к предыдущей версии
-
-```bash
-helm rollback user-service 1
-helm rollback diary-service 1
-helm rollback mood-analysis-service 1
-helm rollback matching-service 1
-helm rollback api-gateway 1

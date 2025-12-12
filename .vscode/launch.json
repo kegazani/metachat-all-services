@@ -1,0 +1,309 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug API Gateway",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-api-gateway/cmd",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-api-gateway",
+            "env": {
+                "SERVICES_USER_SERVICE_ADDRESS": "localhost:50051",
+                "SERVICES_DIARY_SERVICE_ADDRESS": "localhost:50052",
+                "SERVICES_MATCHING_SERVICE_ADDRESS": "localhost:50053",
+                "SERVICES_MATCH_REQUEST_SERVICE_ADDRESS": "localhost:50054",
+                "SERVICES_CHAT_SERVICE_ADDRESS": "localhost:50055",
+                "SERVICES_BIOMETRIC_SERVICE_ADDRESS": "http://localhost:8003",
+                "SERVER_PORT": "8080"
+            },
+            "args": [],
+            "showLog": true
+        },
+        {
+            "name": "Debug User Service",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-user-service/cmd",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-user-service",
+            "env": {
+                "CASSANDRA_HOSTS": "localhost:9042",
+                "CASSANDRA_KEYSPACE": "metachat",
+                "KAFKA_BOOTSTRAP_SERVERS": "localhost:29092",
+                "EVENT_STORE_TYPE": "eventstoredb",
+                "EVENT_STORE_URL": "http://localhost:2113",
+                "EVENT_STORE_USERNAME": "admin",
+                "EVENT_STORE_PASSWORD": "changeit",
+                "SERVER_PORT": "50051",
+                "GRPC_PORT": "50051",
+                "LOGGING_LEVEL": "debug"
+            },
+            "args": [],
+            "showLog": true
+        },
+        {
+            "name": "Debug Diary Service",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-diary-service/cmd",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-diary-service",
+            "env": {
+                "CASSANDRA_HOSTS": "localhost:9042",
+                "CASSANDRA_KEYSPACE": "metachat",
+                "KAFKA_BOOTSTRAP_SERVERS": "localhost:29092",
+                "KAFKA_DIARY_EVENTS_TOPIC": "diary-events",
+                "EVENT_STORE_TYPE": "eventstoredb",
+                "EVENT_STORE_URL": "http://localhost:2113",
+                "EVENT_STORE_USERNAME": "admin",
+                "EVENT_STORE_PASSWORD": "changeit",
+                "SERVER_PORT": "8082",
+                "GRPC_PORT": "50052",
+                "LOGGING_LEVEL": "debug"
+            },
+            "args": [],
+            "showLog": true
+        },
+        {
+            "name": "Debug Matching Service",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-matching-service/cmd",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-matching-service",
+            "env": {
+                "CASSANDRA_HOSTS": "localhost:9042",
+                "CASSANDRA_KEYSPACE": "metachat",
+                "SERVER_HTTP_PORT": "8081",
+                "SERVER_PORT": "8081",
+                "GRPC_PORT": "50053",
+                "LOGGING_LEVEL": "debug"
+            },
+            "args": [],
+            "showLog": true
+        },
+        {
+            "name": "Debug Match Request Service",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-match-request-service/cmd",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-match-request-service",
+            "env": {
+                "DATABASE_HOST": "localhost",
+                "DATABASE_PORT": "5432",
+                "DATABASE_USER": "metachat",
+                "DATABASE_PASSWORD": "metachat_password",
+                "DATABASE_NAME": "metachat",
+                "SERVER_PORT": "50054",
+                "LOGGING_LEVEL": "debug"
+            },
+            "args": [],
+            "showLog": true
+        },
+        {
+            "name": "Debug Chat Service",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-chat-service/cmd",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-chat-service",
+            "env": {
+                "DATABASE_HOST": "localhost",
+                "DATABASE_PORT": "5432",
+                "DATABASE_USER": "metachat",
+                "DATABASE_PASSWORD": "metachat_password",
+                "DATABASE_NAME": "metachat",
+                "SERVER_PORT": "50055",
+                "LOGGING_LEVEL": "debug"
+            },
+            "args": [],
+            "showLog": true
+        },
+        {
+            "name": "Debug Mood Analysis Service",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-mood-analysis-service/src/main.py",
+            "justMyCode": false,
+            "console": "internalConsole",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-mood-analysis-service",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/metachat-all-services/metachat-mood-analysis-service",
+                "KAFKA_BROKERS": "localhost:29092",
+                "CASSANDRA_HOSTS": "localhost:9042",
+                "CASSANDRA_KEYSPACE": "metachat",
+                "HTTP_PORT": "8000",
+                "GRPC_PORT": "50056",
+                "LOG_LEVEL": "debug"
+            }
+        },
+        {
+            "name": "Debug Analytics Service",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-analytics-service/src/main.py",
+            "justMyCode": false,
+            "console": "internalConsole",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-analytics-service",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/metachat-all-services/metachat-analytics-service",
+                "KAFKA_BROKERS": "localhost:29092",
+                "CASSANDRA_HOSTS": "localhost:9042",
+                "CASSANDRA_KEYSPACE": "metachat",
+                "HTTP_PORT": "8001",
+                "GRPC_PORT": "50057",
+                "LOG_LEVEL": "debug"
+            }
+        },
+        {
+            "name": "Debug Archetype Service",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-archetype-service/src/main.py",
+            "justMyCode": false,
+            "console": "internalConsole",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-archetype-service",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/metachat-all-services/metachat-archetype-service",
+                "KAFKA_BROKERS": "localhost:29092",
+                "CASSANDRA_HOSTS": "localhost:9042",
+                "CASSANDRA_KEYSPACE": "metachat",
+                "HTTP_PORT": "8002",
+                "GRPC_PORT": "50058",
+                "LOG_LEVEL": "debug"
+            }
+        },
+        {
+            "name": "Debug Biometric Service",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-biometric-service/src/main.py",
+            "justMyCode": false,
+            "console": "internalConsole",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-biometric-service",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/metachat-all-services/metachat-biometric-service",
+                "KAFKA_BROKERS": "[\"localhost:29092\"]",
+                "DATABASE_URL": "postgresql+asyncpg://metachat:metachat_password@localhost:5432/metachat_biometric",
+                "DATABASE_POOL_SIZE": "10",
+                "DATABASE_MAX_OVERFLOW": "20",
+                "HTTP_PORT": "8003",
+                "HTTP_HOST": "0.0.0.0",
+                "LOG_LEVEL": "DEBUG",
+                "BIOMETRIC_DATA_RECEIVED_TOPIC": "metachat.biometric.data.received",
+                "WATCH_DATA_RECEIVED_TOPIC": "metachat.watch.data.received",
+                "USER_HEALTH_UPDATED_TOPIC": "metachat.user.health.updated"
+            }
+        },
+        {
+            "name": "Debug Correlation Service",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/metachat-all-services/metachat-correlation-service/src/main.py",
+            "justMyCode": false,
+            "console": "internalConsole",
+            "cwd": "${workspaceFolder}/metachat-all-services/metachat-correlation-service",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/metachat-all-services/metachat-correlation-service",
+                "KAFKA_BROKERS": "[\"localhost:29092\"]",
+                "DATABASE_URL": "postgresql+asyncpg://metachat:metachat_password@localhost:5432/metachat_correlation",
+                "DATABASE_POOL_SIZE": "10",
+                "DATABASE_MAX_OVERFLOW": "20",
+                "HTTP_PORT": "8004",
+                "HTTP_HOST": "0.0.0.0",
+                "LOG_LEVEL": "DEBUG",
+                "MOOD_ANALYZED_TOPIC": "metachat.mood.analyzed",
+                "BIOMETRIC_DATA_RECEIVED_TOPIC": "metachat.biometric.data.received",
+                "WATCH_DATA_RECEIVED_TOPIC": "metachat.watch.data.received",
+                "CORRELATION_DISCOVERED_TOPIC": "metachat.correlation.discovered"
+            }
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Launch All Services (Debug)",
+            "configurations": [
+                "Debug API Gateway",
+                "Debug User Service",
+                "Debug Diary Service",
+                "Debug Matching Service",
+                "Debug Match Request Service",
+                "Debug Chat Service",
+                "Debug Mood Analysis Service",
+                "Debug Analytics Service",
+                "Debug Archetype Service",
+                "Debug Biometric Service",
+                "Debug Correlation Service"
+            ],
+            "stopAll": true,
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 1
+            }
+        },
+        {
+            "name": "Launch Go Services Only",
+            "configurations": [
+                "Debug API Gateway",
+                "Debug User Service",
+                "Debug Diary Service",
+                "Debug Matching Service",
+                "Debug Match Request Service",
+                "Debug Chat Service"
+            ],
+            "stopAll": true,
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 2
+            }
+        },
+        {
+            "name": "Launch Python ML Services",
+            "configurations": [
+                "Debug Mood Analysis Service",
+                "Debug Analytics Service",
+                "Debug Archetype Service"
+            ],
+            "stopAll": true,
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 3
+            }
+        },
+        {
+            "name": "Launch Biometric & Correlation Services",
+            "configurations": [
+                "Debug Biometric Service",
+                "Debug Correlation Service"
+            ],
+            "stopAll": true,
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 4
+            }
+        },
+        {
+            "name": "Launch Core + Biometric (Full Health Tracking)",
+            "configurations": [
+                "Debug API Gateway",
+                "Debug User Service",
+                "Debug Biometric Service",
+                "Debug Correlation Service",
+                "Debug Mood Analysis Service"
+            ],
+            "stopAll": true,
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 5
+            }
+        }
+    ]
+}
+

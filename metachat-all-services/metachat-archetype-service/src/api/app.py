@@ -1,13 +1,17 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import asyncio
+import structlog
 
 from src.config import Config
-from src.domain.archetype_classifier import ArchetypeClassifier
-from src.infrastructure.database import Database
-from src.infrastructure.repository import ArchetypeRepository
+from src.domain.big_five_classifier import BigFiveClassifier
+from src.infrastructure.database import Database, Base
+from src.infrastructure.repository import PersonalityRepository
 from src.infrastructure.kafka_client import KafkaProducer, KafkaConsumer
 from src.application.event_handler import EventHandler
+from src.infrastructure.models import UserPersonalityData, BigFiveCalculation
+
+logger = structlog.get_logger()
 
 app_state = {}
 consumer_task = None
@@ -18,8 +22,12 @@ async def lifespan(app: FastAPI):
     config = Config()
     
     db = Database(config)
-    classifier = ArchetypeClassifier()
-    repository = ArchetypeRepository(db)
+    
+    await db.create_database_if_not_exists()
+    await db.create_tables()
+    
+    classifier = BigFiveClassifier()
+    repository = PersonalityRepository(db)
     kafka_producer = KafkaProducer(config)
     kafka_producer.start()
     
@@ -37,6 +45,8 @@ async def lifespan(app: FastAPI):
     global consumer_task
     consumer_task = asyncio.create_task(kafka_consumer.consume_loop())
     
+    logger.info("Personality Service (Big Five) started")
+    
     yield
     
     if consumer_task:
@@ -52,19 +62,19 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Archetype Service",
-    description="Service for determining psychological archetypes",
-    version="1.0.0",
+    title="Personality Service",
+    description="Service for determining Big Five personality traits",
+    version="2.0.0",
     lifespan=lifespan
 )
 
 
 @app.get("/")
 async def root():
-    return {"service": "archetype-service", "version": "1.0.0"}
+    return {"service": "personality-service", "version": "2.0.0", "model": "Big Five (OCEAN)"}
 
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "archetype-service"}
+    return {"status": "healthy", "service": "personality-service"}
 
