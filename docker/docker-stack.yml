@@ -513,6 +513,34 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  portainer:
+    image: portainer/portainer-ce:latest
+    hostname: portainer
+    ports:
+      - "9000:9000"
+      - "9443:9443"
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+      restart_policy:
+        condition: any
+        delay: 5s
+
 volumes:
   zookeeper_data:
   zookeeper_logs:
@@ -523,6 +551,7 @@ volumes:
   eventstore_logs:
   prometheus_data:
   grafana_data:
+  portainer_data:
 
 networks:
   metachat_network:
