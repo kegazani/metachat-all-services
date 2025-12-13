@@ -1,31 +1,29 @@
-FROM golang:1.24 AS builder
+FROM golang:1.24-alpine AS builder
+
+RUN apk add --no-cache git
 
 WORKDIR /app
 
-COPY metachat-chat-service/go.mod ./
-COPY metachat-chat-service/go.sum* ./
-
+COPY go.mod go.sum* ./
 RUN go mod download
 
-COPY metachat-chat-service/ .
+COPY . .
 
 RUN go mod tidy
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o service ./cmd/main.go
 
-FROM debian:stable-slim
+FROM alpine:latest
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk --no-cache add ca-certificates
 
-WORKDIR /app
+WORKDIR /root/
 
-COPY --from=builder /app/main .
+COPY --from=builder /app/service .
 
 COPY --from=builder /app/config ./config
 
-EXPOSE 50055
+EXPOSE 8080 50051
 
-CMD ["./main"]
+CMD ["./service"]
 

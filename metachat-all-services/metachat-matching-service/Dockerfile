@@ -1,29 +1,29 @@
-# Build stage
 FROM golang:1.24-alpine AS builder
+
+RUN apk add --no-cache git
 
 WORKDIR /app
 
-COPY metachat-matching-service/go.mod ./
-RUN apk add --no-cache git && go mod download
+COPY go.mod go.sum* ./
+RUN go mod download
 
-COPY metachat-matching-service/ .
+COPY . .
 
 RUN go mod tidy
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o service ./cmd/main.go
 
-# Final stage
 FROM alpine:latest
 
-WORKDIR /app
+RUN apk --no-cache add ca-certificates
 
-# Copy binary from builder stage
-COPY --from=builder /app/main .
+WORKDIR /root/
 
-# Copy configuration files
+COPY --from=builder /app/service .
+
 COPY --from=builder /app/config ./config
 
-EXPOSE 8080
+EXPOSE 8080 50051
 
-# Command to run the application
-CMD ["./main"]
+CMD ["./service"]
+

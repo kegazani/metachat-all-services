@@ -4,30 +4,25 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-COPY metachat-api-gateway/go.mod metachat-api-gateway/go.sum* ./
+COPY go.mod go.sum* ./
 RUN go mod download
 
-COPY metachat-api-gateway/ .
+COPY . .
 
 RUN go mod tidy
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o api-gateway ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o service ./cmd/main.go
 
-# Final stage
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
 
 WORKDIR /root/
 
-# Copy the binary from builder stage
-COPY --from=builder /app/api-gateway .
+COPY --from=builder /app/service .
 
-# Copy configuration files
 COPY --from=builder /app/config ./config
 
-# Expose port
-EXPOSE 8080
+EXPOSE 8080 50051
 
-# Run the binary
-CMD ["./api-gateway"]
+CMD ["./service"]

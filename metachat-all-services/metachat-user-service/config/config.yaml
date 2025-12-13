@@ -4,14 +4,14 @@ server:
 
 event_store:
   type: "eventstoredb"  # Options: "memory", "eventstoredb"
-  url: "http://localhost:2113"
+  url: "http://eventstore:2113"
   username: "admin"
   password: "changeit"
   stream_prefix: "metachat-user"
 
 cassandra:
   hosts:
-    - "localhost"
+    - "cassandra"
   keyspace: "metachat"
   consistency: "QUORUM"
   timeout: "10s"
@@ -23,7 +23,7 @@ cassandra:
 
 kafka:
   brokers:
-    - "localhost:9092"
+    - "kafka:29092"
   topic_prefix: "metachat"
   consumer_group: "user-service"
   producer_timeout: "15s"

@@ -38,10 +38,18 @@ foreach ($service in $services) {
             exit 1
         }
     } elseif ($serviceType -eq "go") {
-        $serviceDir = Join-Path $baseDir "metachat-${serviceName}"
+        $serviceDir = "metachat-${serviceName}"
         
-        Set-Location $serviceDir
-        docker build -t $imageName .
+        Set-Location $baseDir
+        
+        $tempDockerfile = "Dockerfile.temp"
+        Get-Content "$serviceDir/Dockerfile" | ForEach-Object {
+            $_ -replace "COPY metachat-${serviceName}/", "COPY $serviceDir/"
+        } | Set-Content $tempDockerfile
+        
+        docker build -t $imageName -f $tempDockerfile --build-arg SERVICE_DIR=$serviceDir .
+        
+        Remove-Item $tempDockerfile
         
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Failed to build $serviceName" -ForegroundColor Red

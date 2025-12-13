@@ -21,7 +21,7 @@ grpc:
 # Event Store
 event_store:
   type: "eventstoredb"  # memory, eventstoredb
-  url: "http://localhost:2113"  # Use localhost for local development, eventstore:2113 for Docker
+  url: "http://eventstore:2113"  # Use localhost for local development, eventstore:2113 for Docker
   username: "admin"
   password: "changeit"
   stream_prefix: "metachat-diary"
@@ -29,7 +29,7 @@ event_store:
 # Cassandra
 cassandra:
   hosts:
-    - "localhost"
+    - "cassandra"
   port: "9042"
   keyspace: "metachat"
   consistency: "QUORUM"
@@ -43,7 +43,7 @@ cassandra:
 # Kafka
 kafka:
   brokers:
-    - "localhost:9092"
+    - "kafka:29092"
   consumer_group: "diary-service-group"
   timeout: "10s"
   diary_events_topic: "diary-events"
