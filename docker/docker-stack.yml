@@ -1,6 +1,236 @@
 version: '3.8'
 
 services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 384M
+      restart_policy:
+        condition: any
+        delay: 5s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_LOG_SEGMENT_BYTES: 268435456
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 768M
+      restart_policy:
+        condition: any
+        delay: 10s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    hostname: kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: metachat
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+      restart_policy:
+        condition: any
+
+  cassandra:
+    image: cassandra:4.1
+    hostname: cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: "metachat-cluster"
+      CASSANDRA_DC: "datacenter1"
+      CASSANDRA_RACK: "rack1"
+      CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
+      MAX_HEAP_SIZE: "512M"
+      HEAP_NEWSIZE: "128M"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+      restart_policy:
+        condition: any
+
+  postgres:
+    image: postgres:15-alpine
+    hostname: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: metachat
+      POSTGRES_PASSWORD: metachat_password
+      POSTGRES_DB: metachat
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: any
+
+  eventstore:
+    image: eventstore/eventstore:23.10.0-bookworm-slim
+    hostname: eventstore
+    ports:
+      - "2113:2113"
+      - "1113:1113"
+    environment:
+      EVENTSTORE_CLUSTER_SIZE: 1
+      EVENTSTORE_RUN_PROJECTIONS: All
+      EVENTSTORE_START_STANDARD_PROJECTIONS: "true"
+      EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP: "true"
+      EVENTSTORE_ENABLE_EXTERNAL_TCP: "true"
+      EVENTSTORE_INSECURE: "true"
+      EVENTSTORE_HTTP_PORT: 2113
+      EVENTSTORE_MEM_DB: "false"
+    volumes:
+      - eventstore_data:/var/lib/eventstore
+      - eventstore_logs:/var/log/eventstore
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 512M
+      restart_policy:
+        condition: any
+
+  prometheus:
+    image: prom/prometheus:latest
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.retention.size=5GB'
+      - '--web.enable-lifecycle'
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M
+      restart_policy:
+        condition: any
+
+  grafana:
+    image: grafana/grafana:latest
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "metachat2024"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - metachat_network
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+      restart_policy:
+        condition: any
+
   api-gateway:
     image: metachat/api-gateway:latest
     hostname: api-gateway
@@ -17,29 +247,14 @@ services:
       - metachat_network
     deploy:
       mode: replicated
-      replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
-        order: start-first
-      rollback_config:
-        parallelism: 1
-        delay: 5s
+      replicas: 1
       restart_policy:
         condition: on-failure
-        delay: 5s
-        max_attempts: 3
+        delay: 10s
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.api-gateway.rule=PathPrefix(`/`)"
-        - "traefik.http.services.api-gateway.loadbalancer.server.port=8080"
 
   user-service:
     image: metachat/user-service:latest
@@ -50,8 +265,6 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - EVENT_STORE_TYPE=eventstoredb
       - EVENT_STORE_URL=http://eventstore:2113
-      - EVENT_STORE_USERNAME=admin
-      - EVENT_STORE_PASSWORD=changeit
       - SERVER_PORT=8080
       - GRPC_PORT=50051
     ports:
@@ -60,12 +273,10 @@ services:
       - metachat_network
     deploy:
       mode: replicated
-      replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
+      replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '0.5'
@@ -88,12 +299,10 @@ services:
       - metachat_network
     deploy:
       mode: replicated
-      replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
+      replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '0.5'
@@ -114,9 +323,10 @@ services:
       - metachat_network
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '0.5'
@@ -138,9 +348,10 @@ services:
       - metachat_network
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '0.3'
@@ -162,9 +373,10 @@ services:
       - metachat_network
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '0.3'
@@ -188,16 +400,14 @@ services:
       - metachat_network
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '1.0'
           memory: 1024M
-        reservations:
-          cpus: '0.5'
-          memory: 512M
 
   analytics-service:
     image: metachat/analytics-service:latest
@@ -220,6 +430,7 @@ services:
       replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '0.5'
@@ -243,9 +454,10 @@ services:
       - metachat_network
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '1.0'
@@ -267,9 +479,10 @@ services:
       - metachat_network
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '0.5'
@@ -294,13 +507,30 @@ services:
       replicas: 1
       restart_policy:
         condition: on-failure
+        delay: 10s
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
 
+volumes:
+  zookeeper_data:
+  zookeeper_logs:
+  kafka_data:
+  cassandra_data:
+  postgres_data:
+  eventstore_data:
+  eventstore_logs:
+  prometheus_data:
+  grafana_data:
+
 networks:
   metachat_network:
-    external: true
-    name: metachat_network
+    driver: overlay
+    attachable: true
+
+configs:
+  prometheus_config:
+    file: ./monitoring/prometheus.yml
+
 

@@ -8,13 +8,13 @@ server:
   grpc_port: 50057
 
 database:
-  url: "postgresql+asyncpg://metachat:metachat_password@127.0.0.1:5432/metachat_analytics"
+  url: "postgresql+asyncpg://metachat:metachat_password@postgres:5432/metachat_analytics"
   pool_size: 10
   max_overflow: 20
 
 kafka:
   brokers:
-    - "127.0.0.1:9092"
+    - "kafka:29092"
   consumer_group: "analytics-service"
   topics:
     mood_analyzed: "metachat.mood.analyzed"

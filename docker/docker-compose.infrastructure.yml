@@ -367,46 +367,6 @@ services:
       - metachat_network
     restart: "no"
 
-  nats:
-    image: nats:2.10-alpine
-    container_name: nats
-    hostname: nats
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-      - "6222:6222"
-    command: 
-      - "-js"
-      - "-m"
-      - "8222"
-      - "-sd"
-      - "/data"
-      - "--store_dir"
-      - "/data/jetstream"
-      - "--max_memory_store"
-      - "256MB"
-      - "--max_file_store"
-      - "1GB"
-    volumes:
-      - nats_data:/data
-    networks:
-      - metachat_network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
   postgres:
     image: postgres:15-alpine
     container_name: postgres
@@ -637,8 +597,6 @@ volumes:
   kafka_data:
     driver: local
   cassandra_data:
-    driver: local
-  nats_data:
     driver: local
   postgres_data:
     driver: local

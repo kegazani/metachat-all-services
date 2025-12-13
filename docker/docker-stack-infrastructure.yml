@@ -15,7 +15,9 @@ services:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_logs:/var/lib/zookeeper/log
     networks:
-      - metachat_network
+      metachat_network:
+        aliases:
+          - zookeeper
     deploy:
       mode: replicated
       replicas: 1
@@ -30,7 +32,7 @@ services:
           cpus: '0.15'
           memory: 256M
       restart_policy:
-        condition: unless-stopped
+        condition: any
         delay: 5s
         max_attempts: 3
         window: 120s
@@ -61,7 +63,9 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
-      - metachat_network
+      metachat_network:
+        aliases:
+          - kafka
     deploy:
       mode: replicated
       replicas: 1
@@ -76,7 +80,7 @@ services:
           cpus: '0.25'
           memory: 768M
       restart_policy:
-        condition: unless-stopped
+        condition: any
         delay: 10s
 
   kafka-ui:
@@ -99,7 +103,7 @@ services:
           cpus: '0.2'
           memory: 256M
       restart_policy:
-        condition: unless-stopped
+        condition: any
 
   cassandra:
     image: cassandra:4.1
@@ -124,7 +128,9 @@ services:
     volumes:
       - cassandra_data:/var/lib/cassandra
     networks:
-      - metachat_network
+      metachat_network:
+        aliases:
+          - cassandra
     deploy:
       mode: replicated
       replicas: 1
@@ -139,40 +145,7 @@ services:
           cpus: '0.5'
           memory: 1024M
       restart_policy:
-        condition: unless-stopped
-
-  nats:
-    image: nats:2.10-alpine
-    hostname: nats
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-      - "6222:6222"
-    command: 
-      - "-js"
-      - "-m"
-      - "8222"
-      - "-sd"
-      - "/data"
-      - "--store_dir"
-      - "/data/jetstream"
-      - "--max_memory_store"
-      - "256MB"
-      - "--max_file_store"
-      - "1GB"
-    volumes:
-      - nats_data:/data
-    networks:
-      - metachat_network
-    deploy:
-      mode: replicated
-      replicas: 1
-      resources:
-        limits:
-          cpus: '0.2'
-          memory: 256M
-      restart_policy:
-        condition: unless-stopped
+        condition: any
 
   postgres:
     image: postgres:15-alpine
@@ -188,7 +161,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - metachat_network
+      metachat_network:
+        aliases:
+          - postgres
     deploy:
       mode: replicated
       replicas: 1
@@ -203,7 +178,7 @@ services:
           cpus: '0.25'
           memory: 512M
       restart_policy:
-        condition: unless-stopped
+        condition: any
 
   eventstore:
     image: eventstore/eventstore:23.10.0-bookworm-slim
@@ -224,7 +199,9 @@ services:
       - eventstore_data:/var/lib/eventstore
       - eventstore_logs:/var/log/eventstore
     networks:
-      - metachat_network
+      metachat_network:
+        aliases:
+          - eventstore
     deploy:
       mode: replicated
       replicas: 1
@@ -233,7 +210,7 @@ services:
           cpus: '0.4'
           memory: 768M
       restart_policy:
-        condition: unless-stopped
+        condition: any
 
   prometheus:
     image: prom/prometheus:latest
@@ -263,7 +240,7 @@ services:
           cpus: '0.3'
           memory: 512M
       restart_policy:
-        condition: unless-stopped
+        condition: any
 
   grafana:
     image: grafana/grafana:latest
@@ -288,7 +265,7 @@ services:
           cpus: '0.2'
           memory: 256M
       restart_policy:
-        condition: unless-stopped
+        condition: any
 
   loki:
     image: grafana/loki:latest
@@ -308,7 +285,7 @@ services:
           cpus: '0.2'
           memory: 256M
       restart_policy:
-        condition: unless-stopped
+        condition: any
 
   promtail:
     image: grafana/promtail:latest
@@ -326,14 +303,13 @@ services:
           cpus: '0.1'
           memory: 128M
       restart_policy:
-        condition: unless-stopped
+        condition: any
 
 volumes:
   zookeeper_data:
   zookeeper_logs:
   kafka_data:
   cassandra_data:
-  nats_data:
   postgres_data:
   eventstore_data:
   eventstore_logs:
@@ -343,8 +319,8 @@ volumes:
 
 networks:
   metachat_network:
-    driver: overlay
-    attachable: true
+    external: true
+    name: metachat_network
 
 configs:
   prometheus_config:

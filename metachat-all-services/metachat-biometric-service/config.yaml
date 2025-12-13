@@ -7,12 +7,12 @@ server:
   http_host: "0.0.0.0"
 
 database:
-  url: "postgresql+asyncpg://metachat:metachat_password@127.0.0.1:5432/metachat_biometric"
+  url: "postgresql+asyncpg://metachat:metachat_password@postgres:5432/metachat_biometric"
   pool_size: 10
   max_overflow: 20
 
 kafka:
-  brokers: ["127.0.0.1:9092"]
+  brokers: ["kafka:29092"]
   topics:
     biometric_data_received: "metachat.biometric.data.received"
 
