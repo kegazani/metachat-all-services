@@ -1,343 +1,254 @@
-# MetaChat Docker Deployment
+# MetaChat Deployment Guide
 
-Полное руководство по деплою MetaChat через Docker.
+## Быстрый старт
 
-## 🎯 Два режима деплоя
-
-### 🐳 Docker Compose (для разработки)
-
-Простой режим для локальной разработки.
+### Полный деплой (сборка + развёртывание + инициализация БД)
 
 ```bash
+cd docker
 ./deploy-full.sh
 ```
 
-### 🐝 Docker Swarm (для продакшена)
+Этот скрипт выполнит:
+1. Сборку всех Docker-образов (Python и Go сервисы)
+2. Развёртывание в Docker Swarm
+3. Создание keyspace в Cassandra
+4. Создание баз данных в PostgreSQL
 
-Продвинутый режим с UI, масштабированием и мониторингом.
+---
 
+## Пошаговый деплой
+
+### 1. Сборка образов
+
+#### Собрать все сервисы
 ```bash
-./deploy-swarm.sh
+cd docker
+./build-all.sh
 ```
 
----
-
-## 📁 Структура файлов
-
-```
-docker/
-├── # === ОСНОВНЫЕ СКРИПТЫ ===
-│
-├── # Docker Compose режим
-├── deploy-full.sh/ps1      # Полный деплой
-├── stop-all.sh/ps1         # Остановка
-├── status.sh/ps1           # Статус
-├── logs.sh/ps1             # Логи
-│
-├── # Docker Swarm режим
-├── deploy-swarm.sh         # Первый деплой
-├── redeploy-swarm.sh       # Редеплой/обновление
-├── stop-swarm.sh           # Остановка
-├── status-swarm.sh         # Статус
-├── logs-swarm.sh           # Логи
-│
-├── # === КОНФИГУРАЦИИ ===
-│
-├── # Docker Compose
-├── docker-compose.infrastructure.yml   # Инфраструктура
-├── docker-compose.services.yml         # Сервисы
-│
-├── # Docker Swarm
-├── docker-compose.swarm.yml            # Инфраструктура для Swarm
-├── docker-compose.swarm-services.yml   # Сервисы для Swarm
-│
-├── # === ДАННЫЕ ===
-├── cassandra-init.cql      # Схема Cassandra
-├── postgres-init.sql       # Схема PostgreSQL
-├── kafka-topics-config.yaml
-│
-├── # === МОНИТОРИНГ ===
-└── monitoring/
-    ├── prometheus.yml
-    ├── grafana/
-    └── ...
+#### Собрать только Python сервисы
+```bash
+cd docker
+./build-python.sh
 ```
 
----
+#### Собрать только Go сервисы
+```bash
+cd docker
+./build-go.sh
+```
 
-## 🐳 Docker Compose режим
-
-### Деплой
+### 2. Развёртывание
 
 ```bash
 cd docker
-./deploy-full.sh         # Linux/Mac
-.\deploy-full.ps1        # Windows
+./deploy.sh
 ```
 
-### Команды
+Этот скрипт:
+- Инициализирует Docker Swarm (если не инициализирован)
+- Создаст overlay сеть `metachat_network`
+- Развернёт все сервисы из `docker-stack.yml`
 
-| Команда | Описание |
-|---------|----------|
-| `./deploy-full.sh` | Полный деплой |
-| `./stop-all.sh` | Остановить всё |
-| `./status.sh` | Показать статус и URLs |
-| `./logs.sh all` | Все логи |
-| `./logs.sh <service>` | Логи конкретного сервиса |
+### 3. Инициализация баз данных
 
-### Примеры
-
+#### Cassandra - создать keyspace
 ```bash
-./logs.sh kafka              # Логи Kafka
-./logs.sh api-gateway        # Логи API Gateway
-./logs.sh infra              # Вся инфраструктура
-./logs.sh services           # Все сервисы
+CASSANDRA_CONTAINER=$(docker ps --filter "name=metachat_cassandra" --format "{{.Names}}" | head -1)
+docker exec $CASSANDRA_CONTAINER cqlsh -e "CREATE KEYSPACE IF NOT EXISTS metachat WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"
+```
+
+#### PostgreSQL - создать базы данных
+```bash
+POSTGRES_CONTAINER=$(docker ps --filter "name=metachat_postgres" --format "{{.Names}}" | head -1)
+docker exec $POSTGRES_CONTAINER psql -U metachat -d postgres -c "CREATE DATABASE metachat_mood;"
+docker exec $POSTGRES_CONTAINER psql -U metachat -d postgres -c "CREATE DATABASE metachat_analytics;"
+docker exec $POSTGRES_CONTAINER psql -U metachat -d postgres -c "CREATE DATABASE metachat_personality;"
+docker exec $POSTGRES_CONTAINER psql -U metachat -d postgres -c "CREATE DATABASE metachat_biometric;"
+docker exec $POSTGRES_CONTAINER psql -U metachat -d postgres -c "CREATE DATABASE metachat_correlation;"
 ```
 
 ---
 
-## 🐝 Docker Swarm режим
+## Управление
 
-### Первый деплой
-
+### Проверить статус сервисов
 ```bash
-cd docker
-chmod +x *.sh
-./deploy-swarm.sh
+docker service ls
 ```
 
-### Команды управления
-
-| Команда | Описание |
-|---------|----------|
-| `./deploy-swarm.sh` | Первый деплой |
-| `./redeploy-swarm.sh all` | Редеплой всего |
-| `./redeploy-swarm.sh services` | Редеплой сервисов |
-| `./redeploy-swarm.sh <service>` | Редеплой одного сервиса |
-| `./stop-swarm.sh all` | Остановить всё |
-| `./stop-swarm.sh clean` | Полная очистка |
-| `./status-swarm.sh` | Статус и URLs |
-| `./logs-swarm.sh <service>` | Логи сервиса |
-
-### Примеры
-
+### Посмотреть логи сервиса
 ```bash
-# Редеплой
-./redeploy-swarm.sh all
-./redeploy-swarm.sh mood-analysis-service
-./redeploy-swarm.sh kafka
-
-# Логи
-./logs-swarm.sh kafka -f
-./logs-swarm.sh grafana --tail 100
-
-# Масштабирование
-docker service scale metachat-services_mood-analysis-service=3
+docker service logs metachat_<service-name> --tail 100 -f
 ```
 
-### Portainer UI
-
-После деплоя доступен веб-интерфейс:
-
-```
-http://your-server:888
+Например:
+```bash
+docker service logs metachat_mood-analysis-service --tail 100 -f
+docker service logs metachat_user-service --tail 100 -f
 ```
 
-Возможности:
-- Мониторинг всех сервисов
-- Просмотр логов в реальном времени
-- Масштабирование через UI
-- Управление стеками и контейнерами
+### Обновить сервис после пересборки образа
+```bash
+docker service update --image metachat/<service-name>:latest metachat_<service-name> --force
+```
+
+### Масштабировать сервис
+```bash
+docker service scale metachat_<service-name>=3
+```
+
+### Удалить весь stack
+```bash
+docker stack rm metachat
+```
+
+### Удалить сеть
+```bash
+docker network rm metachat_network
+```
 
 ---
 
-## 🌐 Доступ к сервисам
+## Доступ к сервисам
 
-> 📄 **Полный список учётных данных:** [CREDENTIALS.md](CREDENTIALS.md)
+| Сервис | URL | Логин/Пароль |
+|--------|-----|--------------|
+| API Gateway | http://localhost:8080 | - |
+| Grafana | http://localhost:3000 | admin/metachat2024 |
+| Kafka UI | http://localhost:8090 | - |
+| Prometheus | http://localhost:9090 | - |
+| PostgreSQL | localhost:5432 | metachat/metachat_password |
+| Cassandra | localhost:9042 | - |
+| EventStore | http://localhost:2113 | admin/changeit |
 
-### Приложение
+---
 
-| Сервис | Порт | URL |
-|--------|------|-----|
-| API Gateway | 8080 | http://77.95.201.100:8080 |
-
-### Мониторинг
-
-| Сервис | Порт | Credentials |
-|--------|------|-------------|
-| Portainer | 888 | Создать при первом входе |
-| Grafana | 3000 | `admin` / `metachat2024` |
-| Prometheus | 9090 | - |
-| Kafka UI | 8090 | - |
+## Архитектура
 
 ### Инфраструктура
+- **PostgreSQL** - реляционная БД для mood-analysis, analytics, archetype, biometric, correlation сервисов
+- **Cassandra** - NoSQL БД для user, diary, matching сервисов
+- **Kafka + Zookeeper** - шина сообщений для событий
+- **EventStore** - хранилище событий (event sourcing)
+- **Prometheus + Grafana** - мониторинг
+- **Kafka UI** - веб-интерфейс для Kafka
 
-| Сервис | Порт | Credentials |
-|--------|------|-------------|
-| PostgreSQL | 5432 | `metachat` / `metachat_password` |
-| Cassandra | 9042 | - |
-| EventStore | 2113 | `admin` / `changeit` |
-| Kafka | 9092 | - |
-| NATS | 4222 | - |
+### Python сервисы (порты 8000-8004, 50056-50058)
+- **mood-analysis-service** - анализ настроения из записей дневника
+- **analytics-service** - аналитика и агрегация данных
+- **archetype-service** - определение психологических архетипов
+- **biometric-service** - обработка биометрических данных
+- **correlation-service** - корреляция между настроением и биометрикой
 
----
-
-## 🔧 Подключение к базам
-
-### Cassandra
-
-```bash
-docker exec -it cassandra cqlsh
-
-USE metachat;
-DESCRIBE TABLES;
-SELECT * FROM users LIMIT 10;
-```
-
-### PostgreSQL
-
-```bash
-docker exec -it postgres psql -U metachat -d metachat
-
-\dt
-SELECT * FROM users;
-```
-
-### Kafka
-
-```bash
-# Список топиков
-docker exec kafka kafka-topics --bootstrap-server localhost:29092 --list
-
-# Чтение сообщений
-docker exec kafka kafka-console-consumer \
-  --bootstrap-server localhost:29092 \
-  --topic metachat.user.events \
-  --from-beginning
-```
+### Go сервисы (порты 8080-8081, 50051-50055)
+- **api-gateway** - основной API gateway
+- **user-service** - управление пользователями
+- **diary-service** - сервис дневника
+- **matching-service** - алгоритмы подбора пар
+- **match-request-service** - обработка запросов на совпадения
+- **chat-service** - чат между пользователями
 
 ---
 
-## 📊 Мониторинг
+## Troubleshooting
 
-### Grafana
-
-1. Откройте http://77.95.201.100:3000
-2. Логин: `admin` / `metachat2024`
-3. Импортируйте дашборд:
-   - Меню → Dashboards → Import
-   - Upload JSON: `monitoring/dashboards/metachat-services-status.json`
-   - Выберите datasource: Prometheus
-   - Нажмите Import
-
-**Доступные дашборды:**
-- **MetaChat Services Status** - статус всех сервисов (UP/DOWN)
-
-### Prometheus
-
-1. Откройте http://localhost:9090
-2. Примеры запросов:
-   - `up` - статус сервисов
-   - `container_memory_usage_bytes` - память
-   - `rate(http_requests_total[5m])` - запросы
-
-### Portainer (только Swarm)
-
-1. Откройте http://localhost:888
-2. Создайте аккаунт администратора
-3. Управляйте всеми сервисами через UI
-
----
-
-## 🐛 Troubleshooting
-
-### Проверка статуса
-
-**Compose:**
+### Сервис не запускается (0/1 replicas)
 ```bash
-./status.sh
-docker compose -f docker-compose.infrastructure.yml ps
+# Посмотреть детали задач
+docker service ps metachat_<service-name> --no-trunc
+
+# Посмотреть логи
+docker service logs metachat_<service-name> --tail 100
 ```
 
-**Swarm:**
+### Проблемы с подключением к БД
+
+#### PostgreSQL
 ```bash
-./status-swarm.sh
-docker service ls
-docker stack ls
+# Проверить что PostgreSQL запущен
+docker service ps metachat_postgres
+
+# Проверить логи PostgreSQL
+docker service logs metachat_postgres --tail 50
+
+# Проверить что базы созданы
+POSTGRES_CONTAINER=$(docker ps --filter "name=metachat_postgres" --format "{{.Names}}" | head -1)
+docker exec $POSTGRES_CONTAINER psql -U metachat -d postgres -c "\l"
 ```
 
-### Логи ошибок
-
-**Compose:**
+#### Cassandra
 ```bash
-./logs.sh kafka
-docker compose -f docker-compose.infrastructure.yml logs kafka
+# Проверить что Cassandra запущена
+docker service ps metachat_cassandra
+
+# Проверить keyspace
+CASSANDRA_CONTAINER=$(docker ps --filter "name=metachat_cassandra" --format "{{.Names}}" | head -1)
+docker exec $CASSANDRA_CONTAINER cqlsh -e "DESCRIBE KEYSPACES;"
 ```
 
-**Swarm:**
+#### Kafka
 ```bash
-./logs-swarm.sh kafka -f
-docker service logs metachat-infra_kafka
+# Проверить что Kafka запущена
+docker service ps metachat_kafka
+docker service ps metachat_zookeeper
+
+# Посмотреть топики
+docker exec $(docker ps --filter "name=metachat_kafka" --format "{{.Names}}" | head -1) \
+  kafka-topics --bootstrap-server localhost:9092 --list
 ```
 
-### Перезапуск
+### Пересобрать и обновить конкретный сервис
 
-**Compose:**
+#### Python сервис
 ```bash
-./stop-all.sh
-./deploy-full.sh
+cd metachat-all-services
+docker build -t metachat/mood-analysis-service:latest \
+  -f metachat-mood-analysis-service/Dockerfile .
+docker service update --image metachat/mood-analysis-service:latest \
+  metachat_mood-analysis-service --force
 ```
 
-**Swarm:**
+#### Go сервис
 ```bash
-./redeploy-swarm.sh all
-# или полностью:
-./stop-swarm.sh all
-./deploy-swarm.sh
-```
-
-### Полная очистка
-
-**Compose:**
-```bash
-docker compose -f docker-compose.infrastructure.yml down -v
-docker compose -f docker-compose.services.yml down -v
-docker system prune -a -f
-```
-
-**Swarm:**
-```bash
-./stop-swarm.sh clean
-docker swarm leave --force
+cd metachat-all-services
+docker build -t metachat/user-service:latest \
+  -f ../docker/Dockerfile.go-service \
+  --build-arg SERVICE_DIR=metachat-user-service .
+docker service update --image metachat/user-service:latest \
+  metachat_user-service --force
 ```
 
 ---
 
-## 🔐 Безопасность для продакшена
+## Требования
 
-1. **Измените пароли:**
-   - PostgreSQL: `POSTGRES_PASSWORD`
-   - Grafana: `GF_SECURITY_ADMIN_PASSWORD`
-
-2. **Используйте HTTPS:**
-   - Настройте reverse proxy (nginx/traefik)
-   - SSL сертификаты
-
-3. **Ограничьте порты:**
-   - Закройте все кроме 8080 (API)
-   - Используйте VPN для мониторинга
-
-4. **Portainer:**
-   - Измените порт 888
-   - Настройте сложный пароль
-   - Ограничьте доступ по IP
+- Docker 20.10+
+- Docker Compose 1.29+ (для локальной разработки)
+- Docker Swarm (для production)
+- Минимум 8GB RAM
+- Минимум 20GB свободного места на диске
 
 ---
 
-## 📚 Дополнительно
+## Разработка
 
-- [Quick Start](../QUICK_START.md)
-- [Все команды](../COMMANDS.md)
-- [Portainer Guide](https://docs.portainer.io/)
-- [Deployment Guide](../docs/DEPLOYMENT.md)
-- [Architecture](../docs/ARCHITECTURE.md)
+### Запуск в режиме разработки (docker-compose)
+
+Для локальной разработки можно использовать docker-compose вместо Swarm:
+
+```bash
+# Только инфраструктура
+docker-compose -f docker/docker-compose.infrastructure.yml up -d
+
+# Инфраструктура + сервисы
+docker-compose -f docker/docker-compose.infrastructure.yml \
+               -f docker/docker-compose.services.yml up -d
+```
+
+### Остановка
+```bash
+docker-compose -f docker/docker-compose.infrastructure.yml \
+               -f docker/docker-compose.services.yml down
+```

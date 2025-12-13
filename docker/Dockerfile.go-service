@@ -4,18 +4,20 @@ RUN apk add --no-cache git
 
 WORKDIR /build
 
-COPY metachat-event-sourcing metachat-event-sourcing
-COPY metachat-proto metachat-proto
+# Copy shared dependencies
+COPY metachat-event-sourcing ./metachat-event-sourcing
+COPY metachat-proto ./metachat-proto
 
+# Copy service files
 ARG SERVICE_DIR
-WORKDIR /build/app
+COPY ${SERVICE_DIR} ./service
 
-COPY ${SERVICE_DIR} .
+WORKDIR /build/service
 
 RUN go mod download
 RUN go mod tidy
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o service ./cmd/
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o app ./cmd/
 
 FROM alpine:latest
 
@@ -23,10 +25,9 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /root/
 
-COPY --from=builder /build/app/service .
-
-COPY --from=builder /build/app/config ./config
+COPY --from=builder /build/service/app .
+COPY --from=builder /build/service/config ./config
 
 EXPOSE 8080 50051
 
-CMD ["./service"]
+CMD ["./app"]
